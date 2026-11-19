@@ -1,0 +1,98 @@
+# Crea el instalador de Windows y lo publica como nueva versión.
+# Se activa al subir una etiqueta de versión (ej. v1.0.0) o a mano desde la pestaña Actions.
+name: Crear instalador
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Poner el número de versión
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}".TrimStart("v")
+          } else {
+            $v = (Select-String -Path motor.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          }
+          $texto = Get-Content motor.py -Raw -Encoding utf8
+          $texto = $texto -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$v`""
+          [System.IO.File]::WriteAllText("$PWD\motor.py", $texto, (New-Object System.Text.UTF8Encoding $false))
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versión: $v"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Revisar que el programa cargue
+        run: python -c "import motor, app; print(motor.APP_NOMBRE, motor.APP_VERSION)"
+
+      - name: Crear el programa (.exe)
+        run: >
+          pyinstaller --noconfirm --clean --windowed
+          --name RadarTendenciasPro --icon radar.ico --add-data "radar.ico;."
+          app.py
+
+      - name: Conseguir Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          }
+          Write-Host "Inno Setup: $($iscc.FullName)"
+          "ISCC=$($iscc.FullName)" >> $env:GITHUB_ENV
+
+      - name: Crear el instalador
+        shell: pwsh
+        run: |
+          & $env:ISCC "/DMyAppVersion=${{ steps.ver.outputs.version }}" "instalador\RadarTendenciasPro.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Crear la versión portátil (.zip)
+        shell: pwsh
+        run: |
+          Copy-Item ejemplo_ventas.csv, LEEME.txt dist\RadarTendenciasPro\
+          Compress-Archive -Path dist\RadarTendenciasPro\* -DestinationPath salida\RadarTendenciasPro-Portable.zip -Force
+          Get-ChildItem salida | Format-Table Name, Length
+
+      - name: Guardar archivos de esta compilación
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadarTendenciasPro-${{ steps.ver.outputs.version }}
+          path: salida/*
+
+      - name: Publicar la versión en GitHub
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Radar de Tendencias Pro ${{ steps.ver.outputs.version }}
+          files: |
+            salida/RadarTendenciasPro-Setup.exe
+            salida/RadarTendenciasPro-Portable.zip
+          generate_release_notes: true
+          body: |
+            **Para instalar:** descarga `RadarTendenciasPro-Setup.exe` y ábrelo.
+            Si Windows muestra «Windows protegió su PC», da clic en *Más información* → *Ejecutar de todas formas*.
+
+            **Sin instalar:** descarga `RadarTendenciasPro-Portable.zip`, descomprímelo y abre `RadarTendenciasPro.exe`.

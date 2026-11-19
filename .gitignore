@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+salida/
+*.spec
+.ruff_cache/
+errores.log

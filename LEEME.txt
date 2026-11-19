@@ -1,0 +1,91 @@
+RADAR DE TENDENCIAS PRO
+Programa para Windows 10/11 que mide tendencias en búsquedas, redes, noticias y tus propias ventas.
+
+=====================================================================
+CÓMO INSTALARLO
+=====================================================================
+  1. Descarga RadarTendenciasPro-Setup.exe desde la página del programa:
+     https://danimakerbro-cloud.github.io/radar-tendencias-pro/
+  2. Ábrelo y da Siguiente > Instalar. No pide permisos de administrador.
+     Si Windows muestra "Windows protegió su PC", da clic en
+     "Más información" > "Ejecutar de todas formas" (pasa con programas
+     nuevos sin firma digital).
+  3. Al abrir el programa, elige tu mercado en la pestaña "Mi mercado".
+
+Cuando salga una versión nueva, el programa te avisa con una barra azul.
+
+=====================================================================
+QUÉ HACE CADA PESTAÑA
+=====================================================================
+0. MI MERCADO                    -> lo primero que configuras
+   - Escribe tu giro (salones de fiestas, oficinas, cafeterías, el que sea)
+     o empieza con una plantilla.
+   - "Sugerir palabras con Google" te propone cómo busca la gente tu giro.
+     Deja solo las que de verdad son de tu mercado.
+   - "Palabras a ignorar": lo que no quieres ver (empleo, vacantes...).
+   - Al guardar, TODAS las pestañas analizan solo ese mercado. Puedes tener
+     varios mercados y cambiar entre ellos arriba, junto al nombre.
+
+1. BÚSQUEDAS (GOOGLE)            -> equivale a Google Trends + Keyword Planner
+   - Compara hasta 5 términos (interés 0-100) en el periodo que elijas.
+     Si escribes algo general (ej. "decoración"), se ajusta a tu mercado
+     ("decoración salón de fiestas"). Puedes apagarlo con la casilla.
+   - Marca "▲ PICO" si un término está muy por encima de lo normal.
+   - "Búsquedas que suben": lo relacionado que más está creciendo.
+   - "Ideas de palabras clave": lo que la gente realmente escribe en Google.
+   - Doble clic en cualquier búsqueda para graficarla.
+
+2. TENDENCIAS DEL DÍA             -> Google "Trending now" + Pinterest Trends
+   - Lo que más creció esta semana en tu mercado.
+   - De lo más buscado hoy en tu país, solo los temas que tocan tu mercado.
+   - Pinterest: ideas que están creciendo antes de volverse masivas
+     (necesita token de Pinterest, ver Configuración).
+
+3. REDES Y MENCIONES              -> escucha digital (social listening)
+   - Deja el tema vacío para analizar todo tu mercado, o escribe un tema
+     para analizarlo dentro de tu mercado.
+   - YouTube: videos de los últimos días que más rápido ganan vistas
+     (vistas por hora y engagement). Necesita una clave gratis.
+   - Noticias: cuántas notas mencionan tu tema por día y si hoy hay pico.
+
+4. MIS DATOS (VENTAS)             -> analítica tipo Tableau / Google Analytics
+   - Abre un CSV o Excel con una columna de fecha (ventas, reservas,
+     exportación de Google Analytics, Mixpanel, etc.).
+   - Te da total, crecimiento, mejor periodo, tendencia y pronóstico.
+   - Si eliges una columna de categoría (producto, servicio...), te dice
+     cuáles suben y cuáles bajan. Clic en una para graficarla.
+   - Prueba con "ejemplo_ventas.csv" incluido.
+
+5. ALERTAS
+   - Agrega términos o usa "Vigilar las palabras de mi mercado".
+   - "Escanear ahora" revisa búsquedas de Google y noticias.
+   - Activa el escaneo automático y deja el programa abierto: te avisa
+     con ventana y sonido cuando algo se dispara.
+
+6. CONFIGURACIÓN
+   - País, idioma, claves de API, frecuencia y sensibilidad de alertas.
+
+=====================================================================
+CLAVES OPCIONALES (GRATIS)
+=====================================================================
+YouTube Data API v3 (5 minutos):
+  console.cloud.google.com > crear proyecto > "APIs y servicios" >
+  Biblioteca > "YouTube Data API v3" > Habilitar > Credenciales >
+  Crear credenciales > Clave de API. Pégala en Configuración.
+
+Pinterest:
+  developers.pinterest.com > My apps > crear app > solicitar acceso >
+  generar token de acceso (lectura). Pégalo en Configuración.
+
+Todo lo demás (Google Trends, autocompletado, noticias) funciona sin claves.
+
+=====================================================================
+LÍMITES QUE CONVIENE SABER
+=====================================================================
+- Google Trends limita consultas muy seguidas: si ves el aviso, espera unos
+  minutos. Los números son relativos (0-100), no búsquedas exactas.
+- TikTok e Instagram no ofrecen API pública gratuita para tendencias, por eso
+  este programa usa YouTube y noticias. Para esas redes existen servicios de
+  paga (Brand24, Hootsuite, Sprout Social).
+- Las claves, el historial y los errores se guardan solo en tu PC, en:
+  %APPDATA%\RadarTendenciasPro
