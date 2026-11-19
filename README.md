@@ -35,9 +35,11 @@ También puedes lanzarlo a mano: pestaña **Actions** → **Crear instalador** �
 La página está en `docs/index.html` y se publica sola con GitHub Pages (`.github/workflows/pagina.yml`) cada vez que cambia.
 Requisito único: **Settings → Pages → Source: GitHub Actions**.
 
-## Correr el código en tu PC
+## Crear el instalador en tu propia PC (sin GitHub)
 
-Doble clic en `1_ABRIR_PROGRAMA.bat` (necesita Python 3.11+). `2_CREAR_EXE.bat` crea un `.exe` suelto sin instalador.
+Doble clic en `CREAR_INSTALADOR.bat`. Instala lo que haga falta (Python, librerías, PyInstaller e Inno Setup) y deja el instalador en `salida\RadarTendenciasPro-Setup.exe`.
+
+Para abrir el programa sin instalarlo, mientras lo modificas: `1_ABRIR_PROGRAMA.bat`.
 
 ## Estructura
 
