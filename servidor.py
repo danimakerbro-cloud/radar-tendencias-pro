@@ -14,6 +14,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -70,6 +71,21 @@ class Estado:
         self.escaneando = False
         self.ultimo_escaneo = None
         self.vivo = None                         # último «En vivo»
+        self._migrar()
+
+    def _migrar(self):
+        """Versiones anteriores podían mezclar palabras entre mercados (por ejemplo «xv» con las de «bodas»).
+        Desde la 1.3.0 hay un solo mercado a la vez; al actualizar se empieza limpio una vez."""
+        if int(self.cfg.get("datos_v", 1)) >= 2:
+            return
+        viejos = self.cfg.get("mercados") or {}
+        palabras_viejas = {p for d in viejos.values() for p in d.get("palabras", [])}
+        for t in self.db.terminos():
+            if t in palabras_viejas:
+                self.db.quitar_termino(t)
+        self.cfg["mercados"], self.cfg["mercado_activo"], self.cfg["datos_v"] = {}, "", 2
+        shutil.rmtree(os.path.join(m.APP_DIR, "analisis"), ignore_errors=True)
+        m.guardar_config(self.cfg)
 
     def _cliente_trends(self):
         return m.GoogleTrends(self.cfg.get("pais") or "MX", self.cfg.get("idioma", "es-419"),
@@ -217,11 +233,26 @@ def accion_guardar_mercado(d):
         raise m.ErrorFuente("Elige al menos una palabra para tu mercado.")
     mer = m.Mercado(nombre, palabras, d.get("excluir", []), d.get("pinterest", ""))
     with E.lock:
-        mercados = E.cfg.setdefault("mercados", {})
-        anterior = d.get("nombre_anterior")
-        if anterior and anterior != nombre:
-            mercados.pop(anterior, None)
-        mercados[nombre] = mer.a_dict()
+        viejos = E.cfg.get("mercados") or {}
+        editando = d.get("nombre_anterior") in viejos
+        if editando:
+            # Solo cambiaron las palabras del mismo mercado: se conserva lo demás
+            viejos.pop(d["nombre_anterior"], None)
+        else:
+            # Mercado nuevo: reemplaza por completo al anterior (palabras, análisis, en vivo y sus alertas)
+            palabras_viejas = {p for v in viejos.values() for p in v.get("palabras", [])}
+            for t in E.db.terminos():
+                if t in palabras_viejas:
+                    E.db.quitar_termino(t)
+            for n in list(viejos):
+                try:
+                    os.remove(E.ruta_analisis(n))
+                except OSError:
+                    pass
+            viejos = {}
+            E.vivo = None
+        viejos[nombre] = mer.a_dict()
+        E.cfg["mercados"] = viejos
         E.cfg["mercado_activo"] = nombre
         E.guardar()
     return accion_estado({})

@@ -21,7 +21,9 @@ CÓMO SE USA
    El programa busca cómo lo busca la gente en Google y te muestra las
    palabras separadas: para vender, ideas, y las que probablemente no son
    de tu mercado (esas quedan sin marcar). Marca las que sí y guarda.
-   Cada mercado guarda sus propias palabras; no se mezclan.
+   Trabajas un mercado a la vez: al buscar uno nuevo (botón "Cambiar de
+   mercado"), el anterior se borra por completo con sus palabras, su
+   análisis y sus alertas. Así nunca se mezclan.
 
 2. INICIO > "Analizar mi mercado": en 1 a 3 minutos (con barra de avance)
    te muestra:

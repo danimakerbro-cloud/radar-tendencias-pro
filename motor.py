@@ -28,7 +28,7 @@ import requests
 # Configuración y rutas
 # ---------------------------------------------------------------------------
 APP_NOMBRE = "Radar de Tendencias Pro"
-APP_VERSION = "1.2.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
+APP_VERSION = "1.3.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
 REPO_URL = "https://github.com/danimakerbro-cloud/radar-tendencias-pro"
 APP_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "RadarTendenciasPro")
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")

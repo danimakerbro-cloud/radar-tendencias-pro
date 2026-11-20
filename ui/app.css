@@ -60,8 +60,9 @@ main { min-width: 0; }
 .superior { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px;
             background: var(--blanco); border-bottom: 1px solid var(--linea); position: sticky; top: 0; z-index: 10; }
 .selector-mercado { display: flex; align-items: center; gap: 10px; color: var(--suave); font-size: 14px; }
-.selector-mercado select { min-width: 260px; padding: 8px 12px; border: 1px solid var(--linea); border-radius: 9px;
-                           background: var(--fondo); font-weight: 600; color: var(--tinta); font-size: 15px; }
+.selector-mercado b { font-size: 16px; color: var(--tinta); background: var(--fondo); border-radius: 9px; padding: 7px 14px; }
+.mercado-actual { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.mercado-actual h2 { font-size: 24px; }
 .contenido { padding: 28px 32px 60px; max-width: 1240px; }
 
 /* ---------- tipografía ---------- */

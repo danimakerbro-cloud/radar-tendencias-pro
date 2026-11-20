@@ -77,20 +77,12 @@ const E = { estado: null, vista: "inicio", analisis: null, analizando: null, edi
 
 async function cargarEstado() {
   E.estado = await api("estado");
-  const sel = $("#selMercado");
-  sel.innerHTML = E.estado.mercados.length
-    ? E.estado.mercados.map((m) => `<option ${m.nombre === E.estado.activo ? "selected" : ""}>${esc(m.nombre)}</option>`).join("")
-    : `<option value="">Todavía no tienes mercado</option>`;
+  $("#nomMercado").textContent = E.estado.activo || "Todavía no tienes";
+  $("#bCambiarMercado").textContent = E.estado.activo ? "Cambiar de mercado" : "Crear mi mercado";
   $("#versionTxt").textContent = `Versión ${E.estado.version}`;
 }
 
-$("#selMercado").addEventListener("change", async (e) => {
-  if (!e.target.value) return ir("mercado");
-  await api("mercado/activar", { nombre: e.target.value });
-  E.analisis = null; E.comparar = null; E.redes = null; E.vivo = null;
-  await cargarEstado();
-  render();
-});
+$("#bCambiarMercado").addEventListener("click", () => { E.editor = nuevoEditor(); ir("mercado"); $("#mNombre")?.focus(); });
 $("#btnAnalizarSup").addEventListener("click", () => analizar());
 $$("#menu button").forEach((b) => b.addEventListener("click", () => ir(b.dataset.vista)));
 
@@ -380,29 +372,23 @@ function reporte(c, r) {
 
 // ------------------------------------------------------------ MI MERCADO
 const EJEMPLOS = ["Salones de fiestas", "Bodas", "XV años", "Oficinas en renta", "Cafetería", "Restaurante", "Gimnasio", "Tienda de ropa"];
-const nuevoEditor = () => ({ nombre: "", anterior: null, palabras: [], excluir: [], pinterest: "", nombre_sugerido: null, buscado: false });
+const nuevoEditor = () => ({ nombre: "", anterior: null, palabras: [], excluir: [], pinterest: "", nombre_sugerido: null, buscado: false, buscadoCon: "" });
+const normal = (t) => (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 function vistaMercado(c) {
-  const mercados = E.estado.mercados;
-  if (!E.editor && !mercados.length) E.editor = nuevoEditor();
-  c.innerHTML = `<h1>Mi mercado</h1><p class="sub">Dile al programa en qué giro estás. Solo se analizarán las tendencias de ese mercado; cada mercado guarda sus propias palabras.</p>
-    ${mercados.length ? `<div class="mercados">${mercados.map((m) => `<div class="mercado-card ${m.nombre === E.estado.activo ? "activo" : ""}">
-        <b>${esc(m.nombre)}</b><small>${m.palabras.length} palabras${m.nombre === E.estado.activo ? " · en uso" : ""}</small>
-        <div class="acc">${m.nombre !== E.estado.activo ? `<button class="btn" data-usar="${esc(m.nombre)}">Usar</button>` : ""}
-        <button class="btn fantasma" data-edit="${esc(m.nombre)}">Editar</button><button class="btn fantasma peligro" data-borrar="${esc(m.nombre)}">Borrar</button></div></div>`).join("")}
-      <button class="mercado-card" id="bNuevo" style="cursor:pointer;border-style:dashed;text-align:left"><b>＋ Nuevo mercado</b><small>Empieza desde cero</small></button></div>` : ""}
+  const actual = E.estado.mercados.find((m) => m.nombre === E.estado.activo);
+  if (!E.editor && !actual) E.editor = nuevoEditor();
+  c.innerHTML = `<h1>Mi mercado</h1><p class="sub">Dile al programa en qué giro estás y solo se analizarán las tendencias de ese mercado. Trabajas un mercado a la vez: al buscar uno nuevo, el anterior se borra por completo.</p>
+    ${actual && !E.editor ? `<section class="tarjeta"><div class="mercado-actual"><div><span class="chico">Estás analizando</span><h2>${esc(actual.nombre)}</h2>
+        <p class="chico">${actual.palabras.length} palabras${(actual.excluir || []).length ? ` · ignora: ${actual.excluir.map(esc).join(", ")}` : ""}</p></div>
+        <div class="fila"><button class="btn" id="bEditar">Editar palabras</button><button class="btn primario" id="bOtro">Buscar otro mercado</button></div></div>
+      <div class="chips-texto" style="margin-top:14px">${actual.palabras.map((p) => `<span>${esc(p)}</span>`).join("")}</div></section>` : ""}
     <div id="editor"></div>`;
-  $$("[data-usar]", c).forEach((b) => (b.onclick = async () => { await api("mercado/activar", { nombre: b.dataset.usar }); E.analisis = null; await cargarEstado(); render(); }));
-  $$("[data-edit]", c).forEach((b) => (b.onclick = () => {
-    const m = mercados.find((x) => x.nombre === b.dataset.edit);
-    E.editor = { nombre: m.nombre, anterior: m.nombre, palabras: m.palabras.map((p) => ({ texto: p, tipo: "general", marcada: true })), excluir: [...(m.excluir || [])], pinterest: m.pinterest || "", buscado: true };
-    render(); $("#editor").scrollIntoView({ behavior: "smooth" });
-  }));
-  $$("[data-borrar]", c).forEach((b) => (b.onclick = async () => {
-    if (b.dataset.conf !== "1") { b.dataset.conf = "1"; b.textContent = "¿Seguro? Toca otra vez"; return; }
-    await api("mercado/borrar", { nombre: b.dataset.borrar }); E.analisis = null; E.editor = null; await cargarEstado(); render();
-  }));
-  if ($("#bNuevo")) $("#bNuevo").onclick = () => { E.editor = nuevoEditor(); render(); $("#mNombre").focus(); };
+  if ($("#bEditar", c)) $("#bEditar", c).onclick = () => {
+    E.editor = { ...nuevoEditor(), nombre: actual.nombre, anterior: actual.nombre, palabras: actual.palabras.map((p) => ({ texto: p, tipo: "general", marcada: true })), excluir: [...(actual.excluir || [])], pinterest: actual.pinterest || "", buscado: true, buscadoCon: normal(actual.nombre) };
+    render();
+  };
+  if ($("#bOtro", c)) $("#bOtro", c).onclick = () => { E.editor = nuevoEditor(); render(); $("#mNombre").focus(); };
   if (E.editor) pintarEditor($("#editor"));
 }
 
@@ -414,6 +400,7 @@ function pintarEditor(c) {
   const marcadas = ed.palabras.filter((p) => p.marcada).length;
   c.innerHTML = `<section class="tarjeta">
     <div class="paso-tit"><span class="paso-num">1</span><h2>${ed.anterior ? "Editar «" + esc(ed.anterior) + "»" : "¿Cuál es tu mercado?"}</h2></div>
+    ${!ed.anterior && E.estado.activo ? `<p class="nota" style="margin-bottom:14px">Al guardar, este mercado <b>reemplaza a «${esc(E.estado.activo)}»</b>: se borran sus palabras, su análisis y sus alertas.</p>` : ""}
     <div class="fila"><label class="campo" style="flex:1;max-width:460px"><span>Nombre del mercado</span>
       <input type="text" id="mNombre" value="${esc(ed.nombre)}" placeholder="Por ejemplo: salones de fiestas"></label>
       <button class="btn ${ed.buscado ? "" : "primario"}" id="bBuscar">${ed.buscado ? "Buscar más palabras" : "Buscar palabras"}</button></div>
@@ -448,9 +435,10 @@ function pintarEditor(c) {
   $$("[data-pl]", c).forEach((b) => (b.onclick = () => {
     const p = E.estado.plantillas[b.dataset.pl];
     Object.assign(ed, { nombre: ed.nombre || b.dataset.pl, palabras: p.palabras.map((t) => ({ texto: t, tipo: "general", marcada: true })), excluir: [...p.excluir], pinterest: p.pinterest, buscado: true });
+    ed.buscadoCon = normal(ed.nombre);
     pintarEditor(c);
   }));
-  if ($("#bSug", c)) $("#bSug", c).onclick = () => { ed.nombre = ed.nombre_sugerido; ed.nombre_sugerido = null; ed.palabras = []; buscarPalabras(); };
+  if ($("#bSug", c)) $("#bSug", c).onclick = () => { ed.nombre = ed.nombre_sugerido; ed.nombre_sugerido = null; ed.palabras = []; ed.buscado = false; buscarPalabras(); };
   if (!ed.buscado) return;
   $$("input[type=checkbox][data-i]", c).forEach((cb) => (cb.onchange = () => { ed.palabras[+cb.dataset.i].marcada = cb.checked; $("#nMarcadas").textContent = ed.palabras.filter((p) => p.marcada).length; }));
   const otra = () => { const v = $("#mOtra", c).value.trim(); if (!v) return; ed.palabras.unshift({ texto: v, tipo: "general", marcada: true }); pintarEditor(c); };
@@ -458,14 +446,14 @@ function pintarEditor(c) {
   $$("[data-qx]", c).forEach((b) => (b.onclick = () => { ed.excluir.splice(+b.dataset.qx, 1); pintarEditor(c); }));
   $("#mExNueva", c).onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { ed.excluir.push(e.target.value.trim()); pintarEditor(c); $("#mExNueva").focus(); } };
   $("#mPin", c).onchange = (e) => (ed.pinterest = e.target.value);
-  $("#bCancelar", c).onclick = () => { E.editor = E.estado.mercados.length ? null : nuevoEditor(); render(); };
+  $("#bCancelar", c).onclick = () => { E.editor = E.estado.activo ? null : nuevoEditor(); render(); };
   $("#bGuardar", c).onclick = async () => {
     const palabras = ed.palabras.filter((p) => p.marcada).map((p) => p.texto);
     if (!ed.nombre.trim()) return aviso("Ponle nombre a tu mercado.", "error");
     if (!palabras.length) return aviso("Marca al menos una palabra.", "error");
     try {
       await api("mercado/guardar", { nombre: ed.nombre.trim(), nombre_anterior: ed.anterior, palabras, excluir: ed.excluir, pinterest: ed.pinterest });
-      E.editor = null; E.analisis = null;
+      E.editor = null; E.analisis = null; E.vivo = null; E.comparar = null; E.redes = null;
       await cargarEstado();
       analizar();
     } catch (err) { aviso(err.message, "error"); }
@@ -480,10 +468,16 @@ async function buscarPalabras() {
   try {
     const { trabajo } = await api("mercado/sugerir", { nombre: ed.nombre.trim() });
     const r = await esperar(trabajo, (t) => barra(t.pct));
-    const previas = new Set(ed.palabras.map((p) => p.texto.toLowerCase()));
-    const nuevas = r.palabras.filter((p) => !previas.has(p.texto.toLowerCase()));
-    ed.palabras = ed.buscado ? [...ed.palabras, ...nuevas.map((p) => ({ ...p }))] : r.palabras;
-    ed.nombre_sugerido = r.nombre_sugerido; ed.buscado = true;
+    const mismo = ed.buscado && normal(ed.nombre) === ed.buscadoCon;
+    if (!mismo && ed.anterior && normal(ed.nombre) !== normal(ed.anterior)) ed.anterior = null;   // cambió de mercado: es uno nuevo
+    if (mismo) {
+      const previas = new Set(ed.palabras.map((p) => normal(p.texto)));
+      ed.palabras = [...ed.palabras, ...r.palabras.filter((p) => !previas.has(normal(p.texto))).map((p) => ({ ...p }))];
+    } else {
+      ed.palabras = r.palabras;   // otro nombre: no se mezclan las palabras del mercado anterior
+      ed.excluir = [];
+    }
+    ed.nombre_sugerido = r.nombre_sugerido; ed.buscado = true; ed.buscadoCon = normal(ed.nombre);
   } catch (err) {
     aviso(errorAmable(err.message), "error", "No se pudieron buscar palabras");
   } finally { barra(null); }

@@ -8,7 +8,7 @@ Desarrollado por Daniel Belmont, CEO de Obsidiana Technology.
 
 ## Qué hace
 
-1. **Mi mercado**: escribes tu giro y el programa propone palabras clave reales de Google, separadas en *para vender*, *ideas* y *probablemente no* (informativas, de otros países, ambiguas como «xview» para «xv»).
+1. **Mi mercado** (uno a la vez; al buscar otro, el anterior se borra): escribes tu giro y el programa propone palabras clave reales de Google, separadas en *para vender*, *ideas* y *probablemente no* (informativas, de otros países, ambiguas como «xview» para «xv»).
 2. **Analizar mi mercado** (barra de avance con pasos): cada palabra con su propia curva y veredicto; búsquedas que despegan separadas por tipo; lo que pregunta la gente; temas de hoy; noticias; videos de YouTube; Pinterest.
 3. **Comparar palabras**, **Noticias y videos**, **Mis ventas** (CSV/Excel con pronóstico) y **Alertas** automáticas.
 

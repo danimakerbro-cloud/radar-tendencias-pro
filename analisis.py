@@ -136,11 +136,16 @@ def veredicto(serie: list[float], umbral_z: float = 2.0) -> dict:
         vals = vals[:-1]                      # el último punto casi siempre está incompleto
     if len(vals) < 6 or max(vals) < 3 or statistics.fmean(vals) < 1:
         return {"veredicto": "Muy pocas búsquedas", "cambio": None, "pico": False}
+    # Curvas casi todo en cero (Google solo registra búsquedas sueltas): un día con algo las haría «explotar»
+    if sum(1 for v in vals if v == 0) / len(vals) > 0.3:
+        return {"veredicto": "Muy pocas búsquedas", "cambio": None, "pico": False}
     n = len(vals)
     k_rec = max(2, round(n * 0.16))           # ~2 semanas de 90 días
     k_ant = max(3, round(n * 0.32))           # ~4 semanas antes
     rec = statistics.fmean(vals[-k_rec:])
     ant = statistics.fmean(vals[-(k_rec + k_ant):-k_rec]) if n > k_rec + 2 else statistics.fmean(vals[:-k_rec])
+    if ant < 2 and rec < 5:
+        return {"veredicto": "Muy pocas búsquedas", "cambio": None, "pico": False}
     cambio = ((rec - ant) / ant * 100) if ant > 0 else (100.0 if rec > 0 else 0.0)
     p = m.detectar_pico(vals, umbral_z, ventana=max(1, round(n * 0.05)))
     if p["es_pico"] and cambio >= 30:
