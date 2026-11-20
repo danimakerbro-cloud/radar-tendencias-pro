@@ -1,13 +1,14 @@
 # Crea el instalador de Windows, lo prueba y lo sube a la versión (Release) que publiques en GitHub.
 # Para sacar una versión: pestaña Releases → "Draft a new release" → etiqueta nueva (ej. v1.2.0) → Publish.
 # Subir a la rama "prueba" compila y prueba todo sin publicar nada.
+# Subir a la rama "publicar" compila, prueba y publica la versión que diga APP_VERSION en motor.py.
 name: Crear instalador
 
 on:
   release:
     types: [published]
   push:
-    branches: [prueba]
+    branches: [prueba, publicar]
   workflow_dispatch:
 
 permissions:
@@ -105,9 +106,16 @@ jobs:
           path: salida/*
 
       - name: Publicar la versión en GitHub
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.ref_name == 'publicar'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Radar de Tendencias Pro ${{ steps.ver.outputs.version }}
+          make_latest: true
+          body: |
+            **Para instalar:** descarga `RadarTendenciasPro-Setup.exe` y ábrelo. Si Windows muestra «Windows protegió su PC», da clic en *Más información* → *Ejecutar de todas formas*.
+            **Sin instalar:** descarga `RadarTendenciasPro-Portable.zip`, descomprímelo y abre `RadarTendenciasPro.exe`.
           files: |
             salida/RadarTendenciasPro-Setup.exe
             salida/RadarTendenciasPro-Portable.zip

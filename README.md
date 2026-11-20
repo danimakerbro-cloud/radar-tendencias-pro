@@ -34,7 +34,7 @@ Doble clic en `CREAR_INSTALADOR.bat`. Instala lo que haga falta (Python, librer�
 
 Para abrir el programa sin instalarlo, mientras lo modificas: `1_ABRIR_PROGRAMA.bat`.
 
-Para compilar y probar en GitHub sin publicar una versión, sube los cambios a la rama `prueba`.
+Para compilar y probar en GitHub sin publicar una versión, sube los cambios a la rama `prueba`. Para publicar sin entrar a la página de GitHub, cambia `APP_VERSION` en `motor.py` y sube a la rama `publicar`.
 
 ## Estructura
 
