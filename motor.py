@@ -28,7 +28,7 @@ import requests
 # Configuración y rutas
 # ---------------------------------------------------------------------------
 APP_NOMBRE = "Radar de Tendencias Pro"
-APP_VERSION = "1.0.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
+APP_VERSION = "1.1.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
 REPO_URL = "https://github.com/danimakerbro-cloud/radar-tendencias-pro"
 APP_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "RadarTendenciasPro")
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
@@ -1047,16 +1047,16 @@ def escanear_termino(termino: str, cfg: dict, gt: GoogleTrends, mercado: "Mercad
     termino_busqueda = mercado.ajustar_termino(termino) if mercado else termino
     consulta_news = mercado.consulta_noticias(termino) if mercado else termino
 
-    # a) Búsquedas en Google, últimos 7 días por hora. Se descarta la última hora (aún incompleta)
-    #    y se comparan las últimas 6 horas contra el resto de la semana.
+    # a) Búsquedas en Google, último mes por día. Se descarta el día de hoy (incompleto)
+    #    y se comparan los últimos 2 días contra el resto del mes (por hora hay demasiados ceros de noche).
     try:
-        _, series = gt.interes_en_el_tiempo([termino_busqueda], "now 7-d")
+        _, series = gt.interes_en_el_tiempo([termino_busqueda], "today 1-m")
         vals = series[termino_busqueda][:-1]
-        p = detectar_pico(vals, umbral, ventana=6)
+        p = detectar_pico(vals, umbral, ventana=2)
         lecturas.append({"fecha": ahora, "termino": termino, "fuente": "Google búsquedas",
                          "valor": p["reciente"], "normal": p["normal"], "z": p["z"], "cambio": p["cambio_pct"],
                          "es_pico": p["es_pico"],
-                         "detalle": f"«{termino_busqueda}» últimas 6 h: {p['reciente']} vs normal {p['normal']} (0-100)"})
+                         "detalle": f"«{termino_busqueda}» últimos 2 días: {p['reciente']:.0f} vs normal {p['normal']:.0f} (0-100)"})
     except ErrorFuente as e:
         lecturas.append({"fecha": ahora, "termino": termino, "fuente": "Google búsquedas", "valor": 0,
                          "normal": 0, "z": 0, "cambio": 0, "es_pico": False, "detalle": f"Error: {e}"})

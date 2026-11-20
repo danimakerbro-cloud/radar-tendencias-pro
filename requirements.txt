@@ -1,4 +1,4 @@
 requests>=2.31
-matplotlib>=3.8
 numpy>=1.26
 openpyxl>=3.1
+pywebview>=5.0

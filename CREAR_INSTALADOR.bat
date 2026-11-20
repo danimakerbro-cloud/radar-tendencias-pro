@@ -32,7 +32,7 @@ if errorlevel 1 goto :error
 
 rem ------------------------------------------------------------ 3. Programa
 echo [3/4] Creando el programa...
-".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --windowed --name RadarTendenciasPro --icon radar.ico --add-data "radar.ico;." app.py
+".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --windowed --name RadarTendenciasPro --icon radar.ico --add-data "radar.ico;." --add-data "ui;ui" app.py
 if errorlevel 1 goto :error
 
 rem ------------------------------------------------------------ 4. Instalador

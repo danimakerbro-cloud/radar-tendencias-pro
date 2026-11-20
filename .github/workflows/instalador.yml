@@ -1,11 +1,13 @@
-# Crea el instalador de Windows y lo sube a la versión (Release) que publiques en GitHub.
-# Para sacar una versión: pestaña Releases → "Draft a new release" → etiqueta nueva (ej. v1.1.0) → Publish.
-# También se puede correr a mano desde la pestaña Actions (crea los archivos sin publicarlos).
+# Crea el instalador de Windows, lo prueba y lo sube a la versión (Release) que publiques en GitHub.
+# Para sacar una versión: pestaña Releases → "Draft a new release" → etiqueta nueva (ej. v1.2.0) → Publish.
+# Subir a la rama "prueba" compila y prueba todo sin publicar nada.
 name: Crear instalador
 
 on:
   release:
     types: [published]
+  push:
+    branches: [prueba]
   workflow_dispatch:
 
 permissions:
@@ -16,10 +18,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Descargar el código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Instalar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -28,14 +30,14 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $v = "${{ github.ref_name }}".TrimStart("v")
+          if ("${{ github.event_name }}" -eq "release") {
+            $v = "${{ github.event.release.tag_name }}".TrimStart("v")
+            $texto = Get-Content motor.py -Raw -Encoding utf8
+            $texto = $texto -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$v`""
+            [System.IO.File]::WriteAllText("$PWD\motor.py", $texto, (New-Object System.Text.UTF8Encoding $false))
           } else {
             $v = (Select-String -Path motor.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
           }
-          $texto = Get-Content motor.py -Raw -Encoding utf8
-          $texto = $texto -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$v`""
-          [System.IO.File]::WriteAllText("$PWD\motor.py", $texto, (New-Object System.Text.UTF8Encoding $false))
           "version=$v" >> $env:GITHUB_OUTPUT
           Write-Host "Versión: $v"
 
@@ -44,14 +46,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
-      - name: Revisar que el programa cargue
-        run: python -c "import motor, app; print(motor.APP_NOMBRE, motor.APP_VERSION)"
+      - name: Revisar que el código cargue
+        run: python -c "import motor, analisis, servidor, app; print(motor.APP_NOMBRE, motor.APP_VERSION)"
 
-      - name: Crear el programa (.exe)
+      - name: Crear el programa
         run: >
           pyinstaller --noconfirm --clean --windowed
-          --name RadarTendenciasPro --icon radar.ico --add-data "radar.ico;."
+          --name RadarTendenciasPro --icon radar.ico
+          --add-data "radar.ico;." --add-data "ui;ui"
           app.py
+
+      - name: "Prueba 1: el programa analiza un mercado con internet real"
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\RadarTendenciasPro\RadarTendenciasPro.exe" -ArgumentList "--prueba", "$PWD\prueba.json" -PassThru -Wait
+          $r = Get-Content prueba.json -Raw -Encoding utf8
+          Write-Host $r
+          $c = ($r | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 6)
+          if ($c.Length -gt 3800) { $c = $c.Substring(0, 3800) }
+          Write-Host "::notice title=Prueba analisis::$c"
+          if ($p.ExitCode -ne 0) { Write-Host "::error::La prueba del análisis falló"; exit 1 }
+
+      - name: "Prueba 2: la ventana abre y muestra la interfaz"
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\RadarTendenciasPro\RadarTendenciasPro.exe" -ArgumentList "--prueba-ventana", "$PWD\ventana.json" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Host "::warning title=Prueba ventana::No cerró a tiempo" }
+          if (Test-Path ventana.json) { $r = Get-Content ventana.json -Raw -Encoding utf8; Write-Host "::notice title=Prueba ventana::$r" } else { Write-Host "::warning title=Prueba ventana::Sin resultado" }
 
       - name: Conseguir Inno Setup
         shell: pwsh
@@ -61,7 +83,6 @@ jobs:
             choco install innosetup -y --no-progress
             $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" | Select-Object -First 1
           }
-          Write-Host "Inno Setup: $($iscc.FullName)"
           "ISCC=$($iscc.FullName)" >> $env:GITHUB_ENV
 
       - name: Crear el instalador
@@ -78,22 +99,15 @@ jobs:
           Get-ChildItem salida | Format-Table Name, Length
 
       - name: Guardar archivos de esta compilación
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: RadarTendenciasPro-${{ steps.ver.outputs.version }}
           path: salida/*
 
       - name: Publicar la versión en GitHub
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          name: Radar de Tendencias Pro ${{ steps.ver.outputs.version }}
           files: |
             salida/RadarTendenciasPro-Setup.exe
             salida/RadarTendenciasPro-Portable.zip
-          generate_release_notes: true
-          body: |
-            **Para instalar:** descarga `RadarTendenciasPro-Setup.exe` y ábrelo.
-            Si Windows muestra «Windows protegió su PC», da clic en *Más información* → *Ejecutar de todas formas*.
-
-            **Sin instalar:** descarga `RadarTendenciasPro-Portable.zip`, descomprímelo y abre `RadarTendenciasPro.exe`.

@@ -15,55 +15,29 @@ CÓMO INSTALARLO
 Cuando salga una versión nueva, el programa te avisa con una barra azul.
 
 =====================================================================
-QUÉ HACE CADA PESTAÑA
+CÓMO SE USA
 =====================================================================
-0. MI MERCADO                    -> lo primero que configuras
-   - Escribe tu giro (salones de fiestas, oficinas, cafeterías, el que sea)
-     o empieza con una plantilla.
-   - "Sugerir palabras con Google" te propone cómo busca la gente tu giro.
-     Deja solo las que de verdad son de tu mercado.
-   - "Palabras a ignorar": lo que no quieres ver (empleo, vacantes...).
-   - Al guardar, TODAS las pestañas analizan solo ese mercado. Puedes tener
-     varios mercados y cambiar entre ellos arriba, junto al nombre.
+1. MI MERCADO: escribe tu giro (salones de fiestas, xv años, oficinas...).
+   El programa busca cómo lo busca la gente en Google y te muestra las
+   palabras separadas: para vender, ideas, y las que probablemente no son
+   de tu mercado (esas quedan sin marcar). Marca las que sí y guarda.
+   Cada mercado guarda sus propias palabras; no se mezclan.
 
-1. BÚSQUEDAS (GOOGLE)            -> equivale a Google Trends + Keyword Planner
-   - Compara hasta 5 términos (interés 0-100) en el periodo que elijas.
-     Si escribes algo general (ej. "decoración"), se ajusta a tu mercado
-     ("decoración salón de fiestas"). Puedes apagarlo con la casilla.
-   - Marca "▲ PICO" si un término está muy por encima de lo normal.
-   - "Búsquedas que suben": lo relacionado que más está creciendo.
-   - "Ideas de palabras clave": lo que la gente realmente escribe en Google.
-   - Doble clic en cualquier búsqueda para graficarla.
+2. INICIO > "Analizar mi mercado": en 1 a 3 minutos (con barra de avance)
+   te muestra:
+   - Cómo va cada palabra, una por una, con su propia curva:
+     Explotando, Sube fuerte, Sube, Estable, Baja...
+   - Búsquedas que están despegando, separadas en: oportunidades de venta,
+     ideas, generales y ocultas (informativas o de otros países).
+     Si algo no es de tu mercado, toca "No es de mi mercado" y no vuelve.
+   - Lo que la gente pregunta (sirve para anuncios y publicaciones).
+   - Lo más buscado hoy en México que toca tu mercado, noticias y videos.
 
-2. TENDENCIAS DEL DÍA             -> Google "Trending now" + Pinterest Trends
-   - Lo que más creció esta semana en tu mercado.
-   - De lo más buscado hoy en tu país, solo los temas que tocan tu mercado.
-   - Pinterest: ideas que están creciendo antes de volverse masivas
-     (necesita token de Pinterest, ver Configuración).
+3. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
+   juntas, para ver cuál se busca más.
 
-3. REDES Y MENCIONES              -> escucha digital (social listening)
-   - Deja el tema vacío para analizar todo tu mercado, o escribe un tema
-     para analizarlo dentro de tu mercado.
-   - YouTube: videos de los últimos días que más rápido ganan vistas
-     (vistas por hora y engagement). Necesita una clave gratis.
-   - Noticias: cuántas notas mencionan tu tema por día y si hoy hay pico.
-
-4. MIS DATOS (VENTAS)             -> analítica tipo Tableau / Google Analytics
-   - Abre un CSV o Excel con una columna de fecha (ventas, reservas,
-     exportación de Google Analytics, Mixpanel, etc.).
-   - Te da total, crecimiento, mejor periodo, tendencia y pronóstico.
-   - Si eliges una columna de categoría (producto, servicio...), te dice
-     cuáles suben y cuáles bajan. Clic en una para graficarla.
-   - Prueba con "ejemplo_ventas.csv" incluido.
-
-5. ALERTAS
-   - Agrega términos o usa "Vigilar las palabras de mi mercado".
-   - "Escanear ahora" revisa búsquedas de Google y noticias.
-   - Activa el escaneo automático y deja el programa abierto: te avisa
-     con ventana y sonido cuando algo se dispara.
-
-6. CONFIGURACIÓN
-   - País, idioma, claves de API, frecuencia y sensibilidad de alertas.
+4. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
+   sonido cuando algo se dispara; deja el programa abierto).
 
 =====================================================================
 CLAVES OPCIONALES (GRATIS)

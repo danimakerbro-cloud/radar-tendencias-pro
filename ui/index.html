@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar de Tendencias Pro</title>
+<link rel="icon" href="icono-64.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="barra-carga" id="barraCarga" hidden><span></span></div>
+
+<aside class="lateral">
+  <div class="logo"><img src="icono-64.png" alt=""><div><b>Radar de Tendencias</b><small>Pro</small></div></div>
+  <nav id="menu" aria-label="Secciones">
+    <button data-vista="inicio" class="activo"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span>Inicio</button>
+    <button data-vista="mercado"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg></span>Mi mercado</button>
+    <button data-vista="comparar"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 8-9"/><path d="M15 6h5v5"/></svg></span>Comparar palabras</button>
+    <button data-vista="redes"><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg></span>Noticias y videos</button>
+    <button data-vista="ventas"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>Mis ventas</button>
+    <button data-vista="alertas"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/></svg></span>Alertas<span class="globo" id="globoAlertas" hidden></span></button>
+    <button data-vista="ajustes"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></span>Ajustes</button>
+  </nav>
+  <div class="pie-lateral">
+    <div id="avisoVersion" hidden></div>
+    <small id="versionTxt"></small>
+  </div>
+</aside>
+
+<main>
+  <header class="superior">
+    <label class="selector-mercado">
+      <span>Mercado</span>
+      <select id="selMercado" aria-label="Mercado activo"></select>
+    </label>
+    <div class="acciones-sup">
+      <button class="btn primario" id="btnAnalizarSup">Analizar mi mercado</button>
+    </div>
+  </header>
+  <div id="contenido" class="contenido"></div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
