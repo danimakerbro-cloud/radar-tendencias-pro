@@ -501,9 +501,17 @@ def en_vivo(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanzar=None,
         try:
             fechas, series = gt.interes_en_el_tiempo([p], "now 1-d")
             serie = series[p]
-            pk = m.detectar_pico(serie[:-1], umbral, ventana=3)
-            horas.append({"palabra": p, "horas": [f.isoformat(timespec="minutes") for f in fechas], "serie": serie,
-                          "pico": bool(pk["es_pico"]), "cambio": pk["cambio_pct"], "fuente": "Google"})
+            base = serie[:-2]                                   # los últimos minutos aún están incompletos
+            ceros = sum(1 for x in base if not x) / max(len(base), 1)
+            if ceros > 0.4:
+                # Casi no se busca por hora: un porcentaje aquí engañaría
+                horas.append({"palabra": p, "horas": [f.isoformat(timespec="minutes") for f in fechas],
+                              "serie": serie, "pico": False, "cambio": None, "poco": True, "fuente": "Google"})
+            else:
+                pk = m.detectar_pico(base, umbral, ventana=max(3, round(len(base) / 12)))   # ~2 horas
+                horas.append({"palabra": p, "horas": [f.isoformat(timespec="minutes") for f in fechas],
+                              "serie": serie, "pico": bool(pk["es_pico"]), "cambio": pk["cambio_pct"],
+                              "fuente": "Google"})
         except m.ErrorFuente as e:
             horas.append({"palabra": p, "error": str(e), "serie": [], "horas": [], "pico": False, "cambio": None,
                           "fuente": "Google"})
