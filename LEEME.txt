@@ -33,10 +33,16 @@ CÓMO SE USA
    - Lo que la gente pregunta (sirve para anuncios y publicaciones).
    - Lo más buscado hoy en México que toca tu mercado, noticias y videos.
 
-3. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
+3. REDES SOCIALES: qué sube en YOUTUBE, GOOGLE IMÁGENES, GOOGLE SHOPPING,
+   PINTEREST e INSTAGRAM (estas dos con tu cuenta, en Ajustes). Cada dato
+   trae una etiqueta con la red de donde salió, y arriba aparece lo que
+   sube en varias redes a la vez. TikTok, Facebook y X no comparten datos
+   de tendencias: el programa abre sus páginas oficiales con un clic.
+
+4. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
    juntas, para ver cuál se busca más.
 
-4. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
+5. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
    sonido cuando algo se dispara; deja el programa abierto).
 
 =====================================================================

@@ -64,7 +64,7 @@ jobs:
           $r = Get-Content prueba.json -Raw -Encoding utf8
           Write-Host $r
           $c = ($r | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 6)
-          if ($c.Length -gt 3800) { $c = $c.Substring(0, 3800) }
+          if ($c.Length -gt 6000) { $c = $c.Substring(0, 6000) }
           Write-Host "::notice title=Prueba analisis::$c"
           if ($p.ExitCode -ne 0) { Write-Host "::error::La prueba del análisis falló"; exit 1 }
 

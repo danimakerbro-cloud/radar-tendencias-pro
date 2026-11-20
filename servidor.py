@@ -136,13 +136,14 @@ def accion_estado(_d):
         "activo": mer.nombre if mer else "",
         "config": {k: cfg.get(k) for k in ("pais", "idioma", "intervalo_min", "umbral_z", "sonido", "auto_escaneo")},
         "tiene_youtube": bool(cfg.get("youtube_api_key")), "tiene_pinterest": bool(cfg.get("pinterest_token")),
+        "tiene_instagram": bool(cfg.get("instagram_token") and cfg.get("instagram_usuario")),
         "plantillas": m.PLANTILLAS_MERCADO, "carpeta": m.APP_DIR,
     }
 
 
 def accion_config(d):
     with E.lock:
-        for k in ("pais", "idioma", "youtube_api_key", "pinterest_token"):
+        for k in ("pais", "idioma", "youtube_api_key", "pinterest_token", "instagram_token", "instagram_usuario"):
             if k in d and d[k] is not None:
                 E.cfg[k] = str(d[k]).strip()
         if "intervalo_min" in d:
@@ -157,7 +158,37 @@ def accion_config(d):
 
 
 def accion_config_claves(_d):
-    return {"youtube_api_key": E.cfg.get("youtube_api_key", ""), "pinterest_token": E.cfg.get("pinterest_token", "")}
+    return {k: E.cfg.get(k, "") for k in ("youtube_api_key", "pinterest_token", "instagram_token", "instagram_usuario")}
+
+
+def accion_probar_instagram(d):
+    """Revisa que el token y la cuenta de Instagram funcionen con una búsqueda de hashtag."""
+    r = m.instagram_hashtag(d.get("token") or E.cfg.get("instagram_token"),
+                            d.get("usuario") or E.cfg.get("instagram_usuario"), "mexico", 3)
+    return {"mensaje": f"Conexión correcta: #{r['hashtag']} respondió con {len(r['publicaciones'])} publicaciones."}
+
+
+def accion_investigar_redes(_d):
+    mer = E.mercado
+    if not mer:
+        raise m.ErrorFuente("Primero crea o elige tu mercado.")
+    cfg = dict(E.cfg)
+
+    def trabajo(avanzar):
+        previo = E.ultimo_analisis() or {}
+        google = [x for grupo in (previo.get("despegan") or {}).values() for x in grupo if x.get("fuente") == "Google"]
+        r = an.investigar_redes(cfg, mer, E.gt, avanzar, 0, 100, google)
+        # Se guarda dentro del último análisis para verlo al volver
+        rep = previo or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
+                                      "errores": {}, "avisos": [], "parcial": True}
+        rep["redes"] = _json(r)
+        rep["fecha_redes"] = dt.datetime.now().isoformat(timespec="minutes")
+        os.makedirs(os.path.dirname(E.ruta_analisis(mer.nombre)), exist_ok=True)
+        with open(E.ruta_analisis(mer.nombre), "w", encoding="utf-8") as f:
+            json.dump(_json(rep), f, ensure_ascii=False)
+        return rep
+
+    return {"trabajo": E.trabajo("redes_sociales", trabajo)}
 
 
 def accion_sugerir(d):
@@ -237,14 +268,6 @@ def accion_analizar(_d):
 
     def trabajo(avanzar):
         rep = an.analizar_mercado(cfg, mer, E.gt, avanzar)
-        if cfg.get("pinterest_token"):
-            try:
-                pins = m.pinterest_tendencias(cfg["pinterest_token"], cfg.get("pais") or "MX", "growing",
-                                              mer.pinterest)
-                propias = [p for p in pins if mer.coincide(p["palabra"])]
-                rep["pinterest"] = (propias or pins)[:15] if mer.pinterest else propias[:15]
-            except m.ErrorFuente as e:
-                rep["errores"]["pinterest"] = str(e)
         os.makedirs(os.path.dirname(E.ruta_analisis(mer.nombre)), exist_ok=True)
         with open(E.ruta_analisis(mer.nombre), "w", encoding="utf-8") as f:
             json.dump(_json(rep), f, ensure_ascii=False)
@@ -494,7 +517,7 @@ ACCIONES = {
     "alertas": accion_alertas, "alertas/agregar": accion_alerta_agregar,
     "alertas/desde_mercado": accion_alerta_desde_mercado, "alertas/quitar": accion_alerta_quitar,
     "alertas/escanear": accion_alerta_escanear, "avisos": accion_avisos, "trabajo": accion_trabajo,
-    "abrir": accion_abrir, "exportar": accion_exportar, "actualizacion": accion_actualizacion,
+    "abrir": accion_abrir, "redes/investigar": accion_investigar_redes, "config/probar_instagram": accion_probar_instagram, "exportar": accion_exportar, "actualizacion": accion_actualizacion,
 }
 
 

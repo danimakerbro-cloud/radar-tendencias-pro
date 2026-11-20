@@ -64,7 +64,14 @@ def _autoprueba(ruta_salida: str) -> int:
             "despegan": {k: [x["busqueda"] for x in v][:6] for k, v in (rep.get("despegan") or {}).items()},
             "preguntas": [x["pregunta"] for x in rep.get("preguntas", [])][:8],
             "hoy_total": rep.get("hoy_total"), "noticias_total": (rep.get("noticias") or {}).get("total"),
+            "redes": {k: {"estado": v.get("estado"), "error": (v.get("error") or "")[:120],
+                          "veredictos": [(p["palabra"], p["veredicto"]) for p in v.get("palabras", [])][:3],
+                          "suben": [x["busqueda"] for x in v.get("suben", [])][:4],
+                          "sugerencias": [x["texto"] for x in v.get("sugerencias", [])][:4]}
+                      for k, v in ((rep.get("redes") or {}).get("redes") or {}).items()},
+            "coinciden": [(c["busqueda"], c["fuentes"]) for c in (rep.get("redes") or {}).get("coinciden", [])][:5],
         }
+        resultado["pasos"]["analizar"]["despegan"] = {k: v[:3] for k, v in resultado["pasos"]["analizar"]["despegan"].items()}
         resultado["ok"] = an["estado"] == "listo" and bool(rep.get("palabras"))
     except Exception:  # noqa: BLE001
         resultado["traza"] = traceback.format_exc()

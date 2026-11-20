@@ -103,7 +103,7 @@ function ir(vista) {
 
 function render() {
   const c = $("#contenido");
-  const vistas = { inicio: vistaInicio, mercado: vistaMercado, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
+  const vistas = { inicio: vistaInicio, mercado: vistaMercado, redsociales: vistaRedesSociales, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
   (vistas[E.vista] || vistaInicio)(c);
 }
 
@@ -199,13 +199,22 @@ function progresoHTML(titulo, t, pasos) {
 
 // ------------------------------------------------------------ análisis del mercado
 const PASOS_ANALISIS = [
-  { hasta: 44, txt: "Medir cada palabra en Google, una por una" },
-  { hasta: 70, txt: "Encontrar las búsquedas que están despegando" },
-  { hasta: 80, txt: "Ver qué pregunta la gente" },
-  { hasta: 86, txt: "Revisar lo más buscado hoy" },
-  { hasta: 92, txt: "Contar las noticias de tu mercado" },
+  { hasta: 34, txt: "Medir cada palabra en Google, una por una" },
+  { hasta: 53, txt: "Encontrar las búsquedas que están despegando en Google" },
+  { hasta: 80, txt: "Investigar en redes: YouTube, Imágenes, Shopping, Pinterest, Instagram" },
+  { hasta: 86, txt: "Ver qué pregunta la gente" },
+  { hasta: 89, txt: "Revisar lo más buscado hoy" },
+  { hasta: 94, txt: "Contar las noticias de tu mercado" },
   { hasta: 100, txt: "Buscar videos que están pegando" },
 ];
+
+// De qué red salió cada dato
+const FUENTES = {
+  "Google": "google", "Google Tendencias": "google", "YouTube": "youtube", "Google Imágenes": "imagenes",
+  "Google Shopping": "shopping", "Pinterest": "pinterest", "Instagram": "instagram", "TikTok": "tiktok",
+  "Facebook": "facebook", "X": "x", "Google Noticias": "noticias",
+};
+const fuente = (f) => (f ? `<span class="fuente f-${FUENTES[f] || "google"}" title="Este dato salió de ${esc(f)}">${esc(f)}</span>` : "");
 
 async function analizar() {
   if (!E.estado.activo) { aviso("Primero crea tu mercado."); return ir("mercado"); }
@@ -261,7 +270,8 @@ function reporte(c, r) {
   const errs = r.errores || {};
   const errorDe = (k) => (errs[k] ? `<div class="error-sec">${esc(errorAmable(errs[k]))}</div>` : "");
   c.innerHTML = `
-    <div class="encabezado"><div><h1>${esc(r.mercado)}</h1><p class="sub" style="margin:0">Analizado ${esc(fechaBonita(r.fecha))}</p></div>
+    <div class="encabezado"><div><h1>${esc(r.mercado)}</h1><p class="sub" style="margin:0">Analizado ${esc(fechaBonita(r.fecha))}</p>
+      <div class="fuentes-revisadas"><span class="chico">Revisé:</span>${(R.redes || ["Google"]).map(fuente).join("")}${fuente("Google Noticias")}</div></div>
       <button class="btn" id="bOtraVez">Analizar de nuevo</button></div>
     ${(r.avisos || []).map((a) => `<p class="nota">${esc(a)}</p>`).join("")}
     ${R.explotando && R.explotando.length ? `<div class="sugerencia"><span>🔥 <b>Explotando ahora:</b> ${R.explotando.map(esc).join(", ")}</span></div>` : ""}
@@ -273,7 +283,9 @@ function reporte(c, r) {
     </div>
     <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Cómo va cada palabra</h2><p>Cada palabra con su propia curva de los últimos 3 meses, comparada consigo misma.</p></div></div>
       ${errorDe("palabras")}<div class="palabras" id="lPal"></div></section>
-    <section class="tarjeta"><div class="tarjeta-cab"><div><h2 id="tBus">Búsquedas que están despegando</h2><p id="pBus">Lo que más creció en el último mes alrededor de tus palabras, separado por tipo.</p></div>
+    ${r.redes && r.redes.coinciden && r.redes.coinciden.length ? `<section class="tarjeta"><div class="tarjeta-cab"><div><h2>🔥 Sube en varias redes a la vez</h2><p>La señal más fuerte: el mismo tema creciendo en más de una red.</p></div><button class="btn" id="bVerRedes">Ver todas las redes</button></div>
+      <ul class="lista">${r.redes.coinciden.map((c) => `<li><div class="txt"><b>${esc(c.busqueda)}</b></div>${c.fuentes.map(fuente).join(" ")}</li>`).join("")}</ul></section>` : ""}
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2 id="tBus">Búsquedas que están despegando</h2><p id="pBus">Lo que más creció en el último mes en Google y en las redes, separado por tipo. Cada una dice de dónde salió.</p></div>
       <div class="segmentado" id="segBus"><button class="activo" data-v="despegan">Despegando</button><button data-v="populares">Más buscadas</button></div></div>
       ${errorDe("despegan")}<div class="pestanas" id="pestBus"></div><p class="chico" id="ayudaBus"></p><ul class="lista" id="lBus"></ul></section>
     <div class="dos-col">
@@ -288,8 +300,9 @@ function reporte(c, r) {
       <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Videos que están pegando</h2><p>Los videos de tu mercado que más rápido ganan vistas esta semana.</p></div></div>
         ${errorDe("videos")}<div id="lVid"></div></section>
     </div>
-    ${r.pinterest ? `<section class="tarjeta"><div class="tarjeta-cab"><div><h2>Ideas que crecen en Pinterest</h2><p>Lo que empieza a buscarse antes de volverse masivo.</p></div></div><ul class="lista">${r.pinterest.map((p) => `<li><div class="txt"><b>${esc(p.palabra)}</b></div><span class="chip sube">${fpct(p.semana)} esta semana</span></li>`).join("")}</ul></section>` : ""}`;
+`;
   $("#bOtraVez").onclick = analizar;
+  if ($("#bVerRedes")) $("#bVerRedes").onclick = () => ir("redsociales");
 
   // Cada palabra
   const lp = $("#lPal");
@@ -311,13 +324,13 @@ function reporte(c, r) {
     const grupos = { venta: g.venta || [], ideas: g.ideas || [], general: g.general || [], ocultas: [...(g.info || []), ...(g.fuera || [])] };
     if (!tipo) tipo = ["venta", "ideas", "general", "ocultas"].find((k) => grupos[k].length) || "venta";
     $("#tBus").textContent = modo === "despegan" ? "Búsquedas que están despegando" : "Lo más buscado en tu mercado";
-    $("#pBus").textContent = modo === "despegan" ? "Lo que más creció en el último mes alrededor de tus palabras, separado por tipo." : "Las búsquedas con más volumen alrededor de tus palabras, separadas por tipo.";
+    $("#pBus").textContent = modo === "despegan" ? "Lo que más creció en el último mes en Google y en las redes, separado por tipo. Cada una dice de dónde salió." : "Las búsquedas con más volumen en Google alrededor de tus palabras, separadas por tipo.";
     $("#pestBus").innerHTML = Object.entries(TIPOS).map(([k, t]) => `<button data-t="${k}" class="${k === tipo ? "activo" : ""}">${t}<span class="cuenta">${grupos[k].length}</span></button>`).join("");
     $$("#pestBus button").forEach((b) => (b.onclick = () => { tipo = b.dataset.t; limite = 10; pintarBus(); }));
     $("#ayudaBus").textContent = AYUDA_TIPOS[tipo];
     const items = grupos[tipo];
     $("#lBus").innerHTML = items.length ? items.slice(0, limite).map((it) => `<li>
-        <div class="txt"><b>${esc(it.busqueda)}</b><small>relacionada con «${esc(it.origen)}»</small></div>
+        <div class="txt"><b>${esc(it.busqueda)}</b><small>${fuente(it.fuente)} ${it.origen ? `relacionada con «${esc(it.origen)}»` : ""}</small></div>
         ${modo === "despegan" ? `<span class="chip ${it.crecimiento === "Explotando" ? "explotando" : "sube"}">${it.crecimiento === "Explotando" ? "🔥 Explotando" : esc(it.crecimiento)}</span>` : `<span class="chip">${it.interes}/100</span>`}
         <span class="acc"><button class="btn fantasma" data-cop="${esc(it.busqueda)}" title="Copiar">Copiar</button>
         <button class="btn fantasma" data-cmp="${esc(it.busqueda)}">Ver curva</button>
@@ -339,13 +352,13 @@ function reporte(c, r) {
 
   // Preguntas
   const pr = r.preguntas || [];
-  $("#lPreg").innerHTML = pr.length ? pr.slice(0, 10).map((p) => `<li><div class="txt">${esc(p.pregunta)}</div>${p.tipo === "venta" ? '<span class="chip venta">💰</span>' : ""}<span class="acc"><button class="btn fantasma" data-cop="${esc(p.pregunta)}">Copiar</button></span></li>`).join("")
+  $("#lPreg").innerHTML = pr.length ? pr.slice(0, 10).map((p) => `<li><div class="txt">${esc(p.pregunta)}<small>${fuente(p.fuente || "Google")}</small></div>${p.tipo === "venta" ? '<span class="chip venta">💰</span>' : ""}<span class="acc"><button class="btn fantasma" data-cop="${esc(p.pregunta)}">Copiar</button></span></li>`).join("")
     : `<li><div class="txt chico">Sin preguntas por ahora.</div></li>`;
   $$("[data-cop]", $("#lPreg")).forEach((b) => (b.onclick = () => copiar(b.dataset.cop)));
 
   // Hoy
   const hoy = r.hoy || [];
-  $("#lHoy").innerHTML = hoy.length ? hoy.map((t) => `<li><div class="txt"><b>${esc(t.tema)}</b><small>${esc(t.noticia)}</small></div><span class="chip">${esc(t.busquedas)}</span>${t.url ? `<a href="#" data-url="${esc(t.url)}" class="btn fantasma">Abrir</a>` : ""}</li>`).join("")
+  $("#lHoy").innerHTML = hoy.length ? hoy.map((t) => `<li><div class="txt"><b>${esc(t.tema)}</b><small>${fuente(t.fuente || "Google Tendencias")} ${esc(t.noticia)}</small></div><span class="chip">${esc(t.busquedas)}</span>${t.url ? `<a href="#" data-url="${esc(t.url)}" class="btn fantasma">Abrir</a>` : ""}</li>`).join("")
     : `<li><div class="txt chico">Hoy ninguno de los ${r.hoy_total || 0} temas más buscados en México toca tu mercado. Es normal: estos temas suelen ser deportes, espectáculos y noticias.</div></li>`;
 
   // Noticias
@@ -354,13 +367,13 @@ function reporte(c, r) {
     $("#pNot").textContent = `${no.total} notas en 2 semanas${no.pico ? " · hoy hay más de lo normal" : ""}.`;
     const cols = no.por_dia.map((d, i) => (i === no.por_dia.length - 1 && no.pico ? "#D97706" : "#93B4F5"));
     graficaLinea($("#gNot"), { etiquetas: no.por_dia.map((d) => d[0]), series: [{ nombre: "Notas", valores: no.por_dia.map((d) => d[1]), color: "#93B4F5", colores: cols }], alto: 150, barras: true });
-    $("#lNot").innerHTML = no.items.slice(0, 5).map((n) => `<li><div class="txt"><a href="#" data-url="${esc(n.url)}">${esc(n.titulo)}</a><small>${esc(n.medio)} · ${esc(fechaBonita(n.fecha))}</small></div></li>`).join("");
+    $("#lNot").innerHTML = no.items.slice(0, 5).map((n) => `<li><div class="txt"><a href="#" data-url="${esc(n.url)}">${esc(n.titulo)}</a><small>${fuente("Google Noticias")} ${esc(n.medio)} · ${esc(fechaBonita(n.fecha))}</small></div></li>`).join("");
   }
 
   // Videos
   const vid = r.videos;
   $("#lVid").innerHTML = vid == null ? `<p class="nota">Para ver videos, agrega tu clave gratuita de YouTube en Ajustes (toma 5 minutos).</p><button class="btn" id="bClave">Ir a Ajustes</button>`
-    : vid.length ? `<ul class="lista">${vid.slice(0, 6).map((v) => `<li><div class="txt"><a href="#" data-url="${esc(v.url)}">${esc(v.titulo)}</a><small>${esc(v.canal)} · ${fnum(v.vistas)} vistas</small></div><span class="chip sube">${fnum(v.vistas_hora)} vistas/hora</span></li>`).join("")}</ul>`
+    : vid.length ? `<ul class="lista">${vid.slice(0, 6).map((v) => `<li><div class="txt"><a href="#" data-url="${esc(v.url)}">${esc(v.titulo)}</a><small>${fuente("YouTube")} ${esc(v.canal)} · ${fnum(v.vistas)} vistas</small></div><span class="chip sube">${fnum(v.vistas_hora)} vistas/hora</span></li>`).join("")}</ul>`
     : `<p class="nota">Esta semana no hubo videos nuevos de tu mercado.</p>`;
   if ($("#bClave")) $("#bClave").onclick = () => ir("ajustes");
 }
@@ -480,6 +493,72 @@ async function buscarPalabras() {
 const PIN_CATS = [["", "Todas"], ["event_planning", "Planeación de eventos"], ["wedding", "Bodas"], ["food_and_drinks", "Comida y bebida"],
   ["home_decor", "Decoración del hogar"], ["womens_fashion", "Moda mujer"], ["mens_fashion", "Moda hombre"], ["beauty", "Belleza"],
   ["design", "Diseño"], ["sport", "Deporte"], ["travel", "Viajes"], ["diy_and_crafts", "Manualidades"], ["entertainment", "Entretenimiento"]];
+
+// ------------------------------------------------------------ REDES SOCIALES
+const TEXTO_RED = {
+  google: "Lo que la gente busca en Google: tu base para saber qué tiene demanda.",
+  youtube: "Lo que la gente busca en YouTube: qué temas quieren ver en video (útil también para TikTok y Reels).",
+  imagenes: "Lo que la gente busca en Google Imágenes: lo visual que buscan, buena pista para Instagram y Pinterest.",
+  shopping: "Lo que la gente busca en Google Shopping: señal de que quieren comprar.",
+  pinterest: "Ideas que empiezan a crecer en Pinterest, antes de volverse masivas.",
+  instagram: "Las publicaciones con más interacción de los hashtags de tu mercado.",
+  tiktok: "TikTok no comparte sus datos de tendencias con programas externos. Ábrelos aquí, en sus páginas oficiales:",
+  facebook: "Facebook no comparte datos de tendencias. Lo más útil es ver los anuncios que está pagando tu competencia:",
+  x: "Lo que se está publicando ahora mismo:",
+};
+
+let investigandoRedes = null;
+async function investigarRedes() {
+  if (investigandoRedes) return;
+  try {
+    const { trabajo } = await api("redes/investigar");
+    investigandoRedes = { pct: 1, paso: "Empezando…" };
+    if (E.vista === "redsociales") render();
+    E.analisis = await esperar(trabajo, (t) => { investigandoRedes = t; barra(t.pct); if (E.vista === "redsociales" && $("#contenido .progreso")) $("#contenido .progreso").outerHTML = progresoHTML("Investigando en redes", t, PASOS_REDES); });
+    aviso("Ya puedes ver qué sube en cada red.", "", "Investigación lista");
+  } catch (err) { aviso(errorAmable(err.message), "error", "No se pudo investigar en redes"); }
+  finally { investigandoRedes = null; barra(null); if (E.vista === "redsociales") render(); }
+}
+const PASOS_REDES = [{ hasta: 20, txt: "YouTube" }, { hasta: 35, txt: "Google Imágenes" }, { hasta: 50, txt: "Google Shopping" }, { hasta: 60, txt: "Lo que se busca en YouTube" }, { hasta: 75, txt: "Pinterest" }, { hasta: 95, txt: "Instagram" }, { hasta: 100, txt: "Cruzar lo que sube en todas" }];
+
+async function vistaRedesSociales(c) {
+  if (!E.estado.activo) { c.innerHTML = `<div class="tarjeta vacio"><h1>Primero crea tu mercado</h1><p>Así investigo en las redes solo lo que es de tu giro.</p><button class="btn primario grande" id="bCr">Crear mi mercado</button></div>`; $("#bCr").onclick = () => ir("mercado"); return; }
+  if (investigandoRedes) { c.innerHTML = progresoHTML("Investigando en redes", investigandoRedes, PASOS_REDES); return; }
+  if (!E.analisis) { cargando(c, "Cargando…"); E.analisis = (await api("analisis/ultimo")).analisis; if (E.vista !== "redsociales") return; }
+  const r = E.analisis && E.analisis.redes;
+  if (!r) {
+    c.innerHTML = `<div class="tarjeta vacio"><h1>Investigar «${esc(E.estado.activo)}» en redes</h1><p>Reviso tu mercado en YouTube, Google Imágenes, Google Shopping, Pinterest e Instagram, y te dejo a un clic TikTok, Facebook y X. Cada dato dice de qué red salió. Tarda alrededor de un minuto.</p><button class="btn primario grande" id="bInv">Investigar en redes</button></div>`;
+    $("#bInv").onclick = investigarRedes; return;
+  }
+  const redes = r.redes || {}, en = r.enlaces || {};
+  const filas = (pal) => (pal || []).map((p) => `<div class="fila-red"><span>${esc(p.palabra)}</span>${sparkline(p.serie, "#5B6B88", 110, 26)}${chipVer(p.veredicto)}<span class="cambio ${p.cambio > 0 ? "pos" : p.cambio < 0 ? "neg" : ""}" style="text-align:right">${fpct(p.cambio)}</span></div>`).join("");
+  const suben = (lista, f) => (lista && lista.length ? `<h3>Lo que más sube aquí</h3><ul class="lista">${lista.slice(0, 8).map((x) => `<li><div class="txt"><b>${esc(x.busqueda)}</b><small>${fuente(f)}${x.tipo === "venta" ? ' <span class="chip venta">💰 venta</span>' : x.tipo === "ideas" ? ' <span class="chip ideas">💡 idea</span>' : ""}</small></div>${x.crecimiento ? `<span class="chip ${x.crecimiento === "Explotando" ? "explotando" : "sube"}">${x.crecimiento === "Explotando" ? "🔥 Explotando" : esc(x.crecimiento)}</span>` : ""}<span class="acc"><button class="btn fantasma" data-cop="${esc(x.busqueda)}">Copiar</button></span></li>`).join("")}</ul>` : "");
+  const links = (k) => (en[k] && en[k].length ? `<div class="enlaces-red">${en[k].map((l) => `<a href="#" data-url="${esc(l.url)}">${esc(l.texto)}</a>`).join("")}</div>` : "");
+  const error = (red) => (red && red.estado === "error" ? `<div class="error-sec">${esc(errorAmable(red.error))}</div>` : "");
+  const tarjeta = (k, nombre, cuerpo) => `<section class="red-card c-${k}"><h2>${fuente(nombre)} ${esc(nombre)}</h2><p class="que">${TEXTO_RED[k]}</p>${cuerpo}</section>`;
+  const pal = (E.analisis.palabras || []);
+  const yt = redes.youtube || {};
+  c.innerHTML = `<div class="encabezado"><div><h1>Redes sociales</h1><p class="sub" style="margin:0">«${esc(E.estado.activo)}» · investigado ${esc(fechaBonita(E.analisis.fecha_redes || E.analisis.fecha))}</p></div>
+      <button class="btn" id="bInv">Investigar de nuevo</button></div>
+    ${r.coinciden && r.coinciden.length ? `<section class="tarjeta"><div class="tarjeta-cab"><div><h2>🔥 Sube en varias redes a la vez</h2><p>El mismo tema creciendo en más de una red: la señal más fuerte para invertir en anuncios o contenido.</p></div></div>
+      <ul class="lista">${r.coinciden.map((x) => `<li><div class="txt"><b>${esc(x.busqueda)}</b></div>${x.fuentes.map(fuente).join(" ")}<span class="acc"><button class="btn fantasma" data-cop="${esc(x.busqueda)}">Copiar</button></span></li>`).join("")}</ul></section>`
+      : `<p class="nota">En esta revisión ningún tema apareció subiendo en dos redes a la vez. Abajo está lo que sube en cada una.</p>`}
+    <div class="redes-grid">
+      ${pal.length ? tarjeta("google", "Google", filas(pal.slice(0, 6))) : ""}
+      ${tarjeta("youtube", "YouTube", error(yt) + filas(yt.palabras) + suben(yt.suben, "YouTube") + (yt.sugerencias && yt.sugerencias.length ? `<h3>Lo que la gente escribe en YouTube</h3><div class="chips-texto">${yt.sugerencias.slice(0, 14).map((s) => `<span>${esc(s.texto)}</span>`).join("")}</div>` : "") + links("youtube"))}
+      ${tarjeta("imagenes", "Google Imágenes", error(redes.imagenes) + filas((redes.imagenes || {}).palabras) + suben((redes.imagenes || {}).suben, "Google Imágenes"))}
+      ${tarjeta("shopping", "Google Shopping", error(redes.shopping) + filas((redes.shopping || {}).palabras) + suben((redes.shopping || {}).suben, "Google Shopping"))}
+      ${tarjeta("pinterest", "Pinterest", ((redes.pinterest || {}).estado === "sin_clave" ? `<p class="nota">Conecta Pinterest en Ajustes (token gratuito) para ver aquí lo que crece. Mientras, ábrelo directo:</p>`
+        : error(redes.pinterest) + ((redes.pinterest || {}).estado === "ok" && !((redes.pinterest || {}).suben || []).length ? `<p class="nota">Esta semana no hubo ideas de tu mercado entre lo que más crece en Pinterest. Tip: en «Mi mercado › Más opciones» elige su categoría (por ejemplo «Bodas» o «Planeación de eventos»).</p>` : suben((redes.pinterest || {}).suben, "Pinterest"))) + links("pinterest"))}
+      ${tarjeta("instagram", "Instagram", ((redes.instagram || {}).estado === "sin_clave" ? `<p class="nota">Conecta tu cuenta profesional de Instagram en Ajustes para ver aquí las publicaciones que más pegan. Mientras, ábrelo directo:</p>`
+        : error(redes.instagram) + (((redes.instagram || {}).publicaciones || []).length ? `<ul class="lista">${redes.instagram.publicaciones.map((p) => `<li><div class="txt"><a href="#" data-url="${esc(p.url)}">${esc(p.texto || "(sin texto)")}</a><small>${fuente("Instagram")} #${esc(p.hashtag)}</small></div><span class="chip">♥ ${fnum(p.likes)}</span><span class="chip">💬 ${fnum(p.comentarios)}</span></li>`).join("")}</ul>` : "")) + links("instagram"))}
+      ${tarjeta("tiktok", "TikTok", links("tiktok"))}
+      ${tarjeta("facebook", "Facebook", links("facebook"))}
+      ${tarjeta("x", "X", links("x"))}
+    </div>`;
+  $("#bInv").onclick = investigarRedes;
+  $$("[data-cop]", c).forEach((b) => (b.onclick = () => copiar(b.dataset.cop)));
+}
 
 // ------------------------------------------------------------ COMPARAR
 const PERIODOS = ["Últimos 7 días", "Últimos 30 días", "Últimos 90 días", "Últimos 12 meses", "Últimos 5 años"];
@@ -732,17 +811,27 @@ async function vistaAjustes(c) {
       <p class="chico">En console.cloud.google.com: crea un proyecto → habilita «YouTube Data API v3» → Credenciales → Crear clave de API.</p>
       <div class="fila" style="margin-top:10px"><label class="campo" style="flex:1"><span>Pinterest (token)</span><input type="password" id="jPin" value="${esc(cl.pinterest_token)}" placeholder="Pega aquí tu token"></label>
         <a href="#" class="btn fantasma" data-url="https://developers.pinterest.com/apps/">Cómo conseguirlo</a></div>
-      <label class="switch" style="margin-top:10px"><input type="checkbox" id="jVer">Mostrar claves</label></section>
+      <h3 style="margin-top:22px">Instagram (oficial, con tu cuenta profesional)</h3>
+      <p class="chico">Permite ver las publicaciones con más interacción de los hashtags de tu mercado. Necesitas una cuenta profesional de Instagram ligada a una página de Facebook y una app en developers.facebook.com con el permiso de búsqueda de hashtags. Meta permite 30 hashtags distintos por semana.</p>
+      <div class="fila"><label class="campo" style="flex:2"><span>Token de acceso</span><input type="password" id="jIgT" value="${esc(cl.instagram_token)}" placeholder="Pega aquí tu token de Meta"></label>
+        <label class="campo" style="flex:1"><span>Número de tu cuenta de Instagram</span><input type="text" id="jIgU" value="${esc(cl.instagram_usuario)}" placeholder="Ej. 17841400000000000"></label>
+        <button class="btn" id="jIgP">Probar conexión</button>
+        <a href="#" class="btn fantasma" data-url="https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-hashtag-search">Cómo conseguirlo</a></div>
+      <label class="switch" style="margin-top:14px"><input type="checkbox" id="jVer">Mostrar claves</label></section>
     <section class="tarjeta"><h2 style="margin-bottom:14px">Avisos</h2>
       <div class="campo"><span>¿Qué tanto debe subir algo para avisarte?</span><div class="segmentado" id="jZ">${[[1.5, "Avísame seguido"], [2, "Normal"], [3, "Solo picos fuertes"]].map(([v, t]) => `<button data-z="${v}" class="${+cfg.umbral_z === v ? "activo" : ""}">${t}</button>`).join("")}</div></div>
       <label class="switch" style="margin-top:14px"><input type="checkbox" id="jSon" ${cfg.sonido !== false ? "checked" : ""}>Sonido al detectar un pico</label></section>
     <div class="fila"><button class="btn primario" id="jGuardar">Guardar ajustes</button><button class="btn" id="jCarpeta">Abrir carpeta de datos</button></div>`;
   let z = +cfg.umbral_z || 2;
   $$("#jZ button", c).forEach((b) => (b.onclick = () => { z = +b.dataset.z; $$("#jZ button").forEach((x) => x.classList.toggle("activo", x === b)); }));
-  $("#jVer", c).onchange = (e) => { $("#jYt").type = $("#jPin").type = e.target.checked ? "text" : "password"; };
+  $("#jVer", c).onchange = (e) => { $("#jYt").type = $("#jPin").type = $("#jIgT").type = e.target.checked ? "text" : "password"; };
+  $("#jIgP", c).onclick = async () => {
+    try { const r = await api("config/probar_instagram", { token: $("#jIgT").value, usuario: $("#jIgU").value }); aviso(r.mensaje, "", "Instagram conectado"); }
+    catch (err) { aviso(errorAmable(err.message), "error", "Instagram no respondió"); }
+  };
   $("#jCarpeta", c).onclick = () => api("abrir", { url: "carpeta" });
   $("#jGuardar", c).onclick = async () => {
-    E.estado = await api("config", { pais: $("#jPais").value, idioma: $("#jIdi").value, youtube_api_key: $("#jYt").value, pinterest_token: $("#jPin").value, umbral_z: z, sonido: $("#jSon").checked });
+    E.estado = await api("config", { pais: $("#jPais").value, idioma: $("#jIdi").value, youtube_api_key: $("#jYt").value, pinterest_token: $("#jPin").value, instagram_token: $("#jIgT").value, instagram_usuario: $("#jIgU").value.trim(), umbral_z: z, sonido: $("#jSon").checked });
     aviso("Ajustes guardados.");
   };
 }

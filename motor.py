@@ -28,7 +28,7 @@ import requests
 # Configuración y rutas
 # ---------------------------------------------------------------------------
 APP_NOMBRE = "Radar de Tendencias Pro"
-APP_VERSION = "1.1.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
+APP_VERSION = "1.2.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
 REPO_URL = "https://github.com/danimakerbro-cloud/radar-tendencias-pro"
 APP_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "RadarTendenciasPro")
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
@@ -43,6 +43,8 @@ CONFIG_DEFECTO = {
     "intervalo_min": 60,         # escaneo automático de alertas
     "umbral_z": 2.0,             # qué tan fuerte debe ser un pico para avisar
     "sonido": True,
+    "instagram_token": "",
+    "instagram_usuario": "",
     "mercados": {},              # {nombre: {"palabras": [...], "excluir": [...], "pinterest": "..."}}
     "mercado_activo": "",
 }
@@ -272,22 +274,23 @@ class GoogleTrends:
             raise ErrorFuente("Google Trends está limitando las consultas (demasiadas seguidas). "
                               "Espera unos minutos y vuelve a intentar.")
 
-    def _explorar(self, terminos: list[str], tiempo: str) -> list[dict]:
+    def _explorar(self, terminos: list[str], tiempo: str, propiedad: str = "") -> list[dict]:
+        """propiedad: "" (búsqueda web), "youtube", "images", "froogle" (Google Shopping) o "news"."""
         req = {
             "comparisonItem": [{"keyword": t, "geo": self.pais, "time": tiempo} for t in terminos],
             "category": 0,
-            "property": "",
+            "property": propiedad,
         }
         datos = self._get("explore", {"hl": self.idioma, "tz": self.tz,
                                       "req": json.dumps(req, separators=(",", ":"))})
         return datos.get("widgets", [])
 
-    def interes_en_el_tiempo(self, terminos: list[str], tiempo: str = "today 3-m"):
+    def interes_en_el_tiempo(self, terminos: list[str], tiempo: str = "today 3-m", propiedad: str = ""):
         """Regresa (fechas, {termino: [valores 0-100]})."""
         terminos = [t.strip() for t in terminos if t.strip()][:5]
         if not terminos:
             raise ErrorFuente("Escribe al menos un término.")
-        widgets = self._explorar(terminos, tiempo)
+        widgets = self._explorar(terminos, tiempo, propiedad)
         w = next((w for w in widgets if w.get("id", "").startswith("TIMESERIES")), None)
         if not w:
             raise ErrorFuente("Google Trends no devolvió datos de interés para esos términos.")
@@ -298,9 +301,9 @@ class GoogleTrends:
         })
         return parsear_serie_trends(datos, terminos)
 
-    def relacionadas(self, termino: str, tiempo: str = "today 3-m") -> dict:
+    def relacionadas(self, termino: str, tiempo: str = "today 3-m", propiedad: str = "") -> dict:
         """Búsquedas relacionadas: {'top': [(consulta, valor)], 'subiendo': [(consulta, crecimiento)]}."""
-        widgets = self._explorar([termino.strip()], tiempo)
+        widgets = self._explorar([termino.strip()], tiempo, propiedad)
         w = next((w for w in widgets if w.get("id", "").startswith("RELATED_QUERIES")), None)
         if not w:
             return {"top": [], "subiendo": []}
@@ -473,6 +476,64 @@ def ideas_palabras(semilla: str, pais: str = "MX", idioma: str = "es-419",
     if not conteo and errores == len(consultas):
         raise ErrorFuente("No se pudo consultar el autocompletado de Google. Revisa tu conexión.")
     return sorted(conteo.items(), key=lambda kv: (-kv[1], orden[kv[0]]))
+
+
+def sugerencias_youtube(consulta: str, pais: str = "MX", idioma: str = "es-419") -> list[str]:
+    """Lo que la gente escribe en el buscador de YouTube (servicio de sugerencias de Google)."""
+    try:
+        r = _sesion().get("https://suggestqueries.google.com/complete/search",
+                          params={"client": "firefox", "ds": "yt", "hl": idioma.split("-")[0],
+                                  "gl": _gl(pais).lower(), "q": consulta}, timeout=15)
+        return json.loads(_texto_respuesta(r))[1] if r.status_code == 200 else []
+    except (requests.RequestException, ValueError, IndexError):
+        return []
+
+
+# ---------------------------------------------------------------------------
+# 1c-bis) Instagram (API oficial de Meta: búsqueda de hashtags de una cuenta profesional)
+# ---------------------------------------------------------------------------
+def quote_url(texto: str) -> str:
+    from urllib.parse import quote
+    return quote(texto or "", safe="")
+
+
+def hashtag_de(texto: str) -> str:
+    """«XV años» -> «xvaños» (los hashtags no llevan espacios ni signos)."""
+    return "".join(c for c in (texto or "").lower() if c.isalnum())
+
+
+def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 12) -> dict:
+    """Publicaciones con más interacción de un hashtag, con la API oficial de Instagram.
+    Necesita una cuenta profesional de Instagram ligada a una página de Facebook y un token de acceso.
+    Meta permite consultar hasta 30 hashtags distintos por semana."""
+    if not token or not ig_usuario:
+        raise ErrorFuente("Falta conectar Instagram en Ajustes (token y número de cuenta).")
+    base = "https://graph.facebook.com"
+    etiqueta = hashtag_de(palabra)
+    try:
+        r = requests.get(f"{base}/ig_hashtag_search", params={"user_id": ig_usuario, "q": etiqueta,
+                                                               "access_token": token}, timeout=25)
+        datos = r.json()
+        if "error" in datos:
+            raise ErrorFuente(f"Instagram: {datos['error'].get('message', 'error')}")
+        if not datos.get("data"):
+            return {"hashtag": etiqueta, "publicaciones": []}
+        hid = datos["data"][0]["id"]
+        r = requests.get(f"{base}/{hid}/top_media", params={
+            "user_id": ig_usuario, "access_token": token, "limit": limite,
+            "fields": "caption,like_count,comments_count,permalink,media_type,timestamp"}, timeout=25)
+        datos = r.json()
+        if "error" in datos:
+            raise ErrorFuente(f"Instagram: {datos['error'].get('message', 'error')}")
+    except requests.RequestException as e:
+        raise ErrorFuente(f"No se pudo conectar con Instagram: {e}") from None
+    pubs = []
+    for p in datos.get("data", []):
+        pubs.append({"texto": (p.get("caption") or "")[:160], "likes": p.get("like_count"),
+                     "comentarios": p.get("comments_count"), "url": p.get("permalink"),
+                     "tipo": p.get("media_type"), "fecha": p.get("timestamp")})
+    pubs.sort(key=lambda x: -((x["likes"] or 0) + 3 * (x["comentarios"] or 0)))
+    return {"hashtag": etiqueta, "publicaciones": pubs}
 
 
 # ---------------------------------------------------------------------------
