@@ -279,3 +279,20 @@ tr.pico td { background: var(--ambar-claro); }
 .vivo-fila:first-of-type { border-top: 0; }
 .videos { display: grid; grid-template-columns: 1fr; }
 @media (prefers-reduced-motion: reduce) { .vivo-punto { animation: none; } }
+
+/* ---------- ideas creativas ---------- */
+.temas { display: flex; flex-direction: column; }
+.tema { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr auto; gap: 14px; align-items: center; padding: 9px 2px; border-top: 1px solid var(--linea); }
+.tema:first-child { border-top: 0; }
+.tema b { font-size: 16px; color: var(--tinta); }
+.tema .riel { background: var(--fondo); border-radius: 4px; height: 8px; }
+.tema .riel i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #7C3AED, #DB2777); }
+.hashtags { display: flex; flex-wrap: wrap; gap: 8px; }
+.hashtags span { display: inline-flex; align-items: center; gap: 6px; background: var(--violeta-claro); color: var(--violeta); border-radius: 999px; padding: 5px 12px; font-weight: 600; font-size: 14px; }
+.hashtags span small { color: #8B5CF6; font-weight: 500; }
+.formatos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.pasos-pegar { counter-reset: p; list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+.pasos-pegar li { counter-increment: p; position: relative; padding-left: 32px; font-size: 14px; line-height: 1.7; color: var(--texto); }
+.pasos-pegar li::before { content: counter(p); position: absolute; left: 0; top: 1px; display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--tinta); color: #fff; font-size: 12px; font-weight: 700; }
+textarea.pegar { width: 100%; min-height: 120px; resize: vertical; font-size: 13px; }
+kbd { background: #fff; border: 1px solid #CDD6E5; border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font-size: 12px; font-family: inherit; }

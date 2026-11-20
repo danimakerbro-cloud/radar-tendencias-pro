@@ -44,7 +44,7 @@ async function esperar(id, alAvanzar) {
     const t = await api("trabajo", { id });
     if (alAvanzar) alAvanzar(t);
     if (t.estado === "listo") return t.resultado;
-    if (t.estado === "error") throw new Error(t.error);
+    if (t.estado === "error" || t.estado === "cancelado") throw new Error(t.error);
   }
 }
 
@@ -78,11 +78,39 @@ const E = { estado: null, vista: "inicio", analisis: null, analizando: null, edi
 async function cargarEstado() {
   E.estado = await api("estado");
   $("#nomMercado").textContent = E.estado.activo || "Todavía no tienes";
+  $("#bBorrarMercado").hidden = !E.estado.activo;
   $("#bCambiarMercado").textContent = E.estado.activo ? "Cambiar de mercado" : "Crear mi mercado";
   $("#versionTxt").textContent = `Versión ${E.estado.version}`;
 }
 
 $("#bCambiarMercado").addEventListener("click", () => { E.editor = nuevoEditor(); ir("mercado"); $("#mNombre")?.focus(); });
+$("#bBorrarMercado").addEventListener("click", (e) => borrarMercado(e.currentTarget));
+
+// Borra el mercado y todo lo que salió de él, y deja el programa como nuevo
+async function borrarMercado(boton) {
+  if (boton && boton.dataset.conf !== "1") {
+    boton.dataset.conf = "1"; const antes = boton.textContent; boton.textContent = "¿Seguro? Toca otra vez";
+    setTimeout(() => { boton.dataset.conf = ""; boton.textContent = antes; }, 4000);
+    return;
+  }
+  try {
+    await api("mercado/borrar");
+    reiniciarPantallas();
+    await cargarEstado();
+    E.editor = nuevoEditor();
+    aviso("Listo: se borró el mercado, su análisis y sus alertas. Empieza de nuevo.", "", "Mercado borrado");
+    ir("mercado");
+  } catch (err) { aviso(err.message, "error"); }
+}
+
+// Olvida todo lo que se ve en pantalla del mercado anterior (y lo que estaba cargando)
+function reiniciarPantallas() {
+  E.gen = (E.gen || 0) + 1;
+  E.analisis = null; E.vivo = null; E.comparar = null; E.redes = null; E.analizando = null;
+  investigandoRedes = null; VIVO.trabajo = null; VIVO.error = null; IDEAS.trabajo = null;
+  barra(null);
+  const b = $("#btnAnalizarSup"); b.disabled = false; b.textContent = "Analizar mi mercado";
+}
 $("#btnAnalizarSup").addEventListener("click", () => analizar());
 $$("#menu button").forEach((b) => b.addEventListener("click", () => ir(b.dataset.vista)));
 
@@ -95,7 +123,7 @@ function ir(vista) {
 
 function render() {
   const c = $("#contenido");
-  const vistas = { inicio: vistaInicio, envivo: vistaEnVivo, mercado: vistaMercado, redsociales: vistaRedesSociales, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
+  const vistas = { inicio: vistaInicio, envivo: vistaEnVivo, ideas: vistaIdeas, tiktokfb: vistaTikTokFb, mercado: vistaMercado, redsociales: vistaRedesSociales, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
   (vistas[E.vista] || vistaInicio)(c);
 }
 
@@ -194,8 +222,9 @@ const PASOS_ANALISIS = [
   { hasta: 34, txt: "Medir cada palabra en Google, una por una" },
   { hasta: 53, txt: "Encontrar las búsquedas que están despegando en Google" },
   { hasta: 80, txt: "Investigar en redes: YouTube, Imágenes, Shopping, Pinterest, Instagram" },
-  { hasta: 86, txt: "Ver qué pregunta la gente" },
-  { hasta: 89, txt: "Revisar lo más buscado hoy" },
+  { hasta: 86, txt: "Buscar ideas creativas: reels, videos, imágenes y hashtags" },
+  { hasta: 88, txt: "Ver qué pregunta la gente" },
+  { hasta: 90, txt: "Revisar lo más buscado hoy" },
   { hasta: 94, txt: "Contar las noticias de tu mercado" },
   { hasta: 100, txt: "Buscar videos que están pegando" },
 ];
@@ -212,22 +241,28 @@ async function analizar() {
   if (!E.estado.activo) { aviso("Primero crea tu mercado."); return ir("mercado"); }
   if (E.analizando) return ir("inicio");
   const boton = $("#btnAnalizarSup");
+  const gen = E.gen || 0;
+  const vigente = () => (E.gen || 0) === gen;   // si cambiaste o borraste el mercado, este análisis ya no cuenta
   try {
     const { trabajo } = await api("analizar");
     E.analizando = { id: trabajo, pct: 0, paso: "Empezando…" };
     boton.disabled = true;
     ir("inicio");
     const rep = await esperar(trabajo, (t) => {
+      if (!vigente()) return;
       E.analizando = t; barra(t.pct); boton.textContent = `Analizando… ${t.pct}%`;
       if (E.vista === "inicio" && $("#contenido .progreso")) $("#contenido").innerHTML = progresoHTML(`Analizando «${E.estado.activo}»`, t, PASOS_ANALISIS);
     });
+    if (!vigente() || rep.mercado !== E.estado.activo) return;
     E.analisis = rep;
     aviso("Ya puedes ver qué está subiendo en tu mercado.", "", "Análisis listo");
   } catch (err) {
-    aviso(errorAmable(err.message), "error", "No se pudo terminar el análisis");
+    if (vigente() && !/canceló/.test(err.message)) aviso(errorAmable(err.message), "error", "No se pudo terminar el análisis");
   } finally {
-    E.analizando = null; barra(null); boton.disabled = false; boton.textContent = "Analizar mi mercado";
-    if (E.vista === "inicio") render();
+    if (vigente()) {
+      E.analizando = null; barra(null); boton.disabled = false; boton.textContent = "Analizar mi mercado";
+      if (E.vista === "inicio") render();
+    }
   }
 }
 
@@ -247,7 +282,7 @@ async function vistaInicio(c) {
     if (E.vista !== "inicio") return;
   }
   const mer = E.estado.mercados.find((m) => m.nombre === E.estado.activo);
-  if (!E.analisis) {
+  if (!E.analisis || !E.analisis.palabras) {
     c.innerHTML = `<div class="tarjeta vacio"><h1>Todo listo para analizar «${esc(E.estado.activo)}»</h1>
       <p>Voy a revisar ${Math.min(8, mer.palabras.length)} palabras de tu mercado en Google, las búsquedas que están despegando, lo que pregunta la gente, los temas de hoy y las noticias. Tarda de 1 a 3 minutos.</p>
       <button class="btn primario grande" id="bAn">Analizar mi mercado</button></div>`;
@@ -273,10 +308,12 @@ function reporte(c, r) {
       <div class="cifra ambar"><b>${R.oportunidades ?? 0}</b><span>oportunidades de venta nuevas</span></div>
       <div class="cifra"><b>${R.ideas ?? 0}</b><span>ideas que están creciendo</span></div>
     </div>
-    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Cómo va cada palabra</h2><p>Cada palabra con su propia curva de los últimos 3 meses, comparada consigo misma.</p></div></div>
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Cómo va cada palabra</h2><p>Cada palabra con su propia curva, comparada consigo misma (3 meses; si se busca poco, 12 meses por semana).</p></div></div>
       ${errorDe("palabras")}<div class="palabras" id="lPal"></div></section>
     ${r.redes && r.redes.coinciden && r.redes.coinciden.length ? `<section class="tarjeta"><div class="tarjeta-cab"><div><h2>🔥 Sube en varias redes a la vez</h2><p>La señal más fuerte: el mismo tema creciendo en más de una red.</p></div><button class="btn" id="bVerRedes">Ver todas las redes</button></div>
       <ul class="lista">${r.redes.coinciden.map((c) => `<li><div class="txt"><b>${esc(c.busqueda)}</b></div>${c.fuentes.map(fuente).join(" ")}</li>`).join("")}</ul></section>` : ""}
+    ${r.ideas && r.ideas.temas && r.ideas.temas.length ? `<section class="tarjeta"><div class="tarjeta-cab"><div><h2>💡 Ideas creativas que se repiten</h2><p>Lo creativo que más sube la gente sobre tu mercado en ${r.ideas.redes.map(esc).join(", ")}.</p></div><button class="btn" id="bVerIdeas">Ver todas las ideas</button></div>
+      <div class="hashtags">${r.ideas.temas.slice(0, 10).map((t) => `<span>${esc(t.tema)} <small>×${t.veces}</small></span>`).join("")}</div></section>` : ""}
     <section class="tarjeta"><div class="tarjeta-cab"><div><h2 id="tBus">Búsquedas que están despegando</h2><p id="pBus">Lo que más creció en el último mes en Google y en las redes, separado por tipo. Cada una dice de dónde salió.</p></div>
       <div class="segmentado" id="segBus"><button class="activo" data-v="despegan">Despegando</button><button data-v="populares">Más buscadas</button></div></div>
       ${errorDe("despegan")}<div class="pestanas" id="pestBus"></div><p class="chico" id="ayudaBus"></p><ul class="lista" id="lBus"></ul></section>
@@ -295,12 +332,13 @@ function reporte(c, r) {
 `;
   $("#bOtraVez").onclick = analizar;
   if ($("#bVerRedes")) $("#bVerRedes").onclick = () => ir("redsociales");
+  if ($("#bVerIdeas")) $("#bVerIdeas").onclick = () => ir("ideas");
 
   // Cada palabra
   const lp = $("#lPal");
   const pal = r.palabras || [];
   lp.innerHTML = pal.length ? pal.map((p) => `<div class="palabra">
-      <span class="nom">${esc(p.palabra)}</span>
+      <span class="nom">${esc(p.palabra)}${p.periodo && p.periodo !== "3 meses" ? `<small class="chico" style="display:block;font-weight:400">medido en ${esc(p.periodo)}</small>` : ""}</span>
       <span>${sparkline(p.serie, p.veredicto && /Baja/.test(p.veredicto) ? "#B91C1C" : p.veredicto === "Explotando" ? "#D97706" : "#2563EB")}</span>
       <span>${chipVer(p.veredicto)}</span>
       <span class="cambio ${p.cambio > 0 ? "pos" : p.cambio < 0 ? "neg" : ""}">${fpct(p.cambio)}</span>
@@ -381,7 +419,7 @@ function vistaMercado(c) {
   c.innerHTML = `<h1>Mi mercado</h1><p class="sub">Dile al programa en qué giro estás y solo se analizarán las tendencias de ese mercado. Trabajas un mercado a la vez: al buscar uno nuevo, el anterior se borra por completo.</p>
     ${actual && !E.editor ? `<section class="tarjeta"><div class="mercado-actual"><div><span class="chico">Estás analizando</span><h2>${esc(actual.nombre)}</h2>
         <p class="chico">${actual.palabras.length} palabras${(actual.excluir || []).length ? ` · ignora: ${actual.excluir.map(esc).join(", ")}` : ""}</p></div>
-        <div class="fila"><button class="btn" id="bEditar">Editar palabras</button><button class="btn primario" id="bOtro">Buscar otro mercado</button></div></div>
+        <div class="fila"><button class="btn" id="bEditar">Editar palabras</button><button class="btn primario" id="bOtro">Buscar otro mercado</button><button class="btn peligro" id="bBorrarM">Borrar mercado</button></div></div>
       <div class="chips-texto" style="margin-top:14px">${actual.palabras.map((p) => `<span>${esc(p)}</span>`).join("")}</div></section>` : ""}
     <div id="editor"></div>`;
   if ($("#bEditar", c)) $("#bEditar", c).onclick = () => {
@@ -389,6 +427,7 @@ function vistaMercado(c) {
     render();
   };
   if ($("#bOtro", c)) $("#bOtro", c).onclick = () => { E.editor = nuevoEditor(); render(); $("#mNombre").focus(); };
+  if ($("#bBorrarM", c)) $("#bBorrarM", c).onclick = (e) => borrarMercado(e.currentTarget);
   if (E.editor) pintarEditor($("#editor"));
 }
 
@@ -453,7 +492,8 @@ function pintarEditor(c) {
     if (!palabras.length) return aviso("Marca al menos una palabra.", "error");
     try {
       await api("mercado/guardar", { nombre: ed.nombre.trim(), nombre_anterior: ed.anterior, palabras, excluir: ed.excluir, pinterest: ed.pinterest });
-      E.editor = null; E.analisis = null; E.vivo = null; E.comparar = null; E.redes = null;
+      E.editor = null;
+      reiniciarPantallas();
       await cargarEstado();
       analizar();
     } catch (err) { aviso(err.message, "error"); }
@@ -487,6 +527,122 @@ async function buscarPalabras() {
 const PIN_CATS = [["", "Todas"], ["event_planning", "Planeación de eventos"], ["wedding", "Bodas"], ["food_and_drinks", "Comida y bebida"],
   ["home_decor", "Decoración del hogar"], ["womens_fashion", "Moda mujer"], ["mens_fashion", "Moda hombre"], ["beauty", "Belleza"],
   ["design", "Diseño"], ["sport", "Deporte"], ["travel", "Viajes"], ["diy_and_crafts", "Manualidades"], ["entertainment", "Entretenimiento"]];
+
+// ------------------------------------------------------------ IDEAS CREATIVAS
+const IDEAS = { trabajo: null };
+const PASOS_IDEAS = [{ hasta: 30, txt: "Ideas que busca la gente en Google" }, { hasta: 45, txt: "Videos que buscan en YouTube" }, { hasta: 55, txt: "Lo visual que sube en Google Imágenes" }, { hasta: 70, txt: "Shorts que pegan" }, { hasta: 92, txt: "Instagram: reels, fotos y carruseles" }, { hasta: 100, txt: "Temas y hashtags que se repiten" }];
+
+async function buscarIdeas() {
+  if (IDEAS.trabajo) return;
+  const gen = E.gen || 0;
+  try {
+    const { trabajo } = await api("ideas");
+    IDEAS.trabajo = { pct: 1, paso: "Empezando…" };
+    if (E.vista === "ideas") render();
+    const rep = await esperar(trabajo, (t) => { if ((E.gen || 0) !== gen) return; IDEAS.trabajo = t; barra(t.pct); if (E.vista === "ideas" && $("#contenido .progreso")) $("#contenido .progreso").outerHTML = progresoHTML("Buscando ideas creativas", t, PASOS_IDEAS); });
+    if ((E.gen || 0) !== gen) return;
+    E.analisis = rep;
+    aviso("Ya puedes ver lo creativo que está subiendo.", "", "Ideas listas");
+  } catch (err) { if (!/canceló/.test(err.message)) aviso(errorAmable(err.message), "error", "No se pudieron buscar ideas"); }
+  finally { if ((E.gen || 0) === gen) { IDEAS.trabajo = null; barra(null); if (E.vista === "ideas") render(); } }
+}
+
+function copiarHashtags(lista) { copiar(lista.map((h) => "#" + h.hashtag).join(" ")); }
+
+async function vistaIdeas(c) {
+  if (!E.estado.activo) { c.innerHTML = `<div class="tarjeta vacio"><h1>Primero crea tu mercado</h1><p>Así busco ideas creativas solo de tu giro.</p><button class="btn primario grande" id="bCr">Crear mi mercado</button></div>`; $("#bCr").onclick = () => ir("mercado"); return; }
+  if (IDEAS.trabajo) { c.innerHTML = progresoHTML("Buscando ideas creativas", IDEAS.trabajo, PASOS_IDEAS); return; }
+  if (!E.analisis) { cargando(c, "Cargando…"); E.analisis = (await api("analisis/ultimo")).analisis; if (E.vista !== "ideas") return; }
+  const I = E.analisis && E.analisis.ideas;
+  if (!I) {
+    c.innerHTML = `<div class="tarjeta vacio"><h1>Ideas creativas de «${esc(E.estado.activo)}»</h1><p>Busco lo creativo que está subiendo la gente: ideas que buscan en Google y YouTube, lo visual que sube en Google Imágenes, los Shorts que pegan, reels y fotos de Instagram, Pinterest y lo que pegues de TikTok y Facebook. Al final, los temas y hashtags que más se repiten.</p><button class="btn primario grande" id="bBI">Buscar ideas creativas</button></div>`;
+    $("#bBI").onclick = buscarIdeas; return;
+  }
+  const er = I.errores || {};
+  const tope = Math.max(1, ...(I.temas || []).map((t) => t.veces));
+  const porRed = (f) => (I.busquedas || []).filter((x) => x.fuente === f);
+  const lista = (xs) => `<ul class="lista">${xs.map((x) => `<li><div class="txt">${esc(x.texto)}</div><span class="acc"><button class="btn fantasma" data-cop="${esc(x.texto)}">Copiar</button></span></li>`).join("")}</ul>`;
+  const pg = (E.analisis.pegados || {});
+  c.innerHTML = `<div class="encabezado"><div><h1>Ideas creativas</h1><p class="sub" style="margin:0">Lo creativo que está subiendo la gente sobre «${esc(E.estado.activo)}» · ${esc(fechaBonita(I.fecha))}</p>
+      <div class="fuentes-revisadas"><span class="chico">Revisé:</span>${(I.redes || []).map(fuente).join("")}</div></div>
+      <button class="btn" id="bBI">Buscar ideas de nuevo</button></div>
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>💡 Temas creativos que más se repiten</h2><p>Lo que aparece una y otra vez en lo que sube y busca la gente. Mientras más redes, más fuerte la idea.</p></div></div>
+      ${(I.temas || []).length ? `<div class="temas">${I.temas.map((t) => `<div class="tema"><b>${esc(t.tema)}</b><div class="riel"><i style="width:${(t.veces / tope) * 100}%"></i></div><span>${t.fuentes.map(fuente).join(" ")} <span class="chico">×${t.veces}</span></span></div>`).join("")}</div>`
+        : `<p class="nota">Todavía no hay suficientes ideas repetidas. Conecta YouTube o Instagram en Ajustes, o pega páginas de TikTok y Facebook, para tener más fuentes.</p>`}</section>
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2># Hashtags más usados</h2><p>Para tus reels, TikToks y publicaciones.</p></div>${(I.hashtags || []).length ? `<button class="btn" id="bCopH">Copiar los 15 primeros</button>` : ""}</div>
+      ${(I.hashtags || []).length ? `<div class="hashtags">${I.hashtags.map((h) => `<span>#${esc(h.hashtag)} <small>×${h.veces}</small></span>`).join("")}</div><p class="chico" style="margin-top:10px">Salen de: ${[...new Set(I.hashtags.flatMap((h) => h.fuentes))].map(fuente).join(" ")}</p>`
+        : `<p class="nota">Los hashtags salen de YouTube Shorts, Instagram y lo que pegues de TikTok y Facebook. Conecta tus claves en Ajustes o usa la sección «TikTok y Facebook».</p>`}</section>
+    <div class="dos-col">
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Ideas que busca la gente ${fuente("Google")}</h2><p>Úsalas como temas de tus publicaciones.</p></div></div>${porRed("Google").length ? lista(porRed("Google").slice(0, 15)) : `<p class="nota">Sin datos.</p>`}</section>
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Videos que buscan ${fuente("YouTube")}</h2><p>Lo que quieren ver en video: buena guía para reels y TikToks.</p></div></div>${porRed("YouTube").length ? lista(porRed("YouTube").slice(0, 15)) : `<p class="nota">Sin datos.</p>`}</section>
+    </div>
+    <div class="dos-col">
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Lo visual que sube ${fuente("Google Imágenes")}</h2><p>Lo que la gente quiere ver en fotos este mes.</p></div></div>${errorDe(er, "imagenes")}
+        ${(I.imagenes || []).length ? `<ul class="lista">${I.imagenes.map((x) => `<li><div class="txt"><b>${esc(x.busqueda)}</b></div><span class="chip ${x.crecimiento === "Explotando" ? "explotando" : "sube"}">${x.crecimiento === "Explotando" ? "🔥 Explotando" : esc(x.crecimiento)}</span></li>`).join("")}</ul>` : `<p class="nota">Este mes no hubo búsquedas de imágenes despegando en tu mercado.</p>`}</section>
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Ideas que crecen ${fuente("Pinterest")}</h2><p>Lo que empieza a crecer antes de volverse masivo.</p></div></div>
+        ${(I.pinterest || []).length ? `<ul class="lista">${I.pinterest.map((x) => `<li><div class="txt"><b>${esc(x.busqueda)}</b></div>${x.crecimiento ? `<span class="chip sube">${esc(x.crecimiento)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="nota">${E.estado.tiene_pinterest ? "Esta semana no hubo ideas de tu mercado creciendo en Pinterest." : "Conecta Pinterest en Ajustes (token gratuito)."}</p>`}</section>
+    </div>
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Videos cortos que más pegan ${fuente("YouTube")}</h2><p>Shorts de tu mercado de las últimas 2 semanas, ordenados por vistas por hora.</p></div></div>${errorDe(er, "shorts")}
+      ${I.shorts == null ? `<p class="nota">Agrega tu clave gratuita de YouTube en Ajustes para ver los Shorts que más pegan.</p>` : I.shorts.length ? `<ul class="lista">${I.shorts.map((v, i) => `<li><div class="txt"><a href="#" data-url="${esc(v.url)}">${esc(v.titulo)}</a><small>${fuente("YouTube")} ${esc(v.canal)} · ${fnum(v.vistas)} vistas</small></div><span class="chip ${i < 3 ? "explotando" : "sube"}">${i < 3 ? "🔥 " : ""}${fnum(v.vistas_hora)} vistas/hora</span></li>`).join("")}</ul>` : `<p class="nota">No hubo Shorts nuevos de tu mercado.</p>`}</section>
+    <section class="red-card c-instagram" style="margin-bottom:18px"><h2>${fuente("Instagram")} Instagram: qué formato funciona mejor</h2><p class="que">Reels, fotos y carruseles con más interacción en los hashtags de tu mercado.</p>${errorDe(er, "instagram")}
+      ${I.instagram == null ? `<p class="nota">Conecta tu cuenta profesional de Instagram en Ajustes para ver aquí qué formato pega más.</p>`
+        : `<div class="formatos">${I.instagram.formatos.map((f) => `<div class="cifra"><b>${fnum(f.promedio)}</b><span>${esc(f.formato)} · interacción promedio (${f.publicaciones})</span></div>`).join("")}</div>
+           <ul class="lista">${I.instagram.publicaciones.map((p) => `<li><div class="txt"><a href="#" data-url="${esc(p.url)}">${esc(p.texto || "(sin texto)")}</a><small>${fuente("Instagram")} ${esc(p.formato)} · #${esc(p.hashtag)}</small></div><span class="chip">♥ ${fnum(p.likes)}</span></li>`).join("")}</ul>`}</section>
+    <section class="red-card c-tiktok"><h2>${fuente("TikTok")} ${fuente("Facebook")} Lo que pegaste de TikTok y Facebook</h2>
+      ${Object.keys(pg).length ? Object.values(pg).map((x) => `<p class="chico">${fuente(x.red)} pegado ${esc(fechaBonita(x.fecha))} · ${x.hashtags.length} hashtags · ${x.temas.length} temas${x.anunciantes.length ? ` · ${x.anunciantes.length} anunciantes` : ""}</p>`).join("") + `<button class="btn" id="bVerPeg">Ver detalle</button>`
+        : `<p class="que">Abre TikTok o la Biblioteca de anuncios de Facebook dentro del programa, copia la página y pégala: sus hashtags y temas se suman aquí.</p><button class="btn primario" id="bVerPeg">Ir a TikTok y Facebook</button>`}</section>`;
+  $("#bBI").onclick = buscarIdeas;
+  if ($("#bCopH")) $("#bCopH").onclick = () => copiarHashtags(I.hashtags.slice(0, 15));
+  if ($("#bVerPeg")) $("#bVerPeg").onclick = () => ir("tiktokfb");
+  $$("[data-cop]", c).forEach((b) => (b.onclick = () => copiar(b.dataset.cop)));
+}
+const errorDe = (er, k) => (er && er[k] ? `<div class="error-sec">${esc(errorAmable(er[k]))}</div>` : "");
+
+// ------------------------------------------------------------ TIKTOK Y FACEBOOK (abrir dentro + pegar)
+const hashtagJS = (t) => (t || "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+async function vistaTikTokFb(c) {
+  if (!E.estado.activo) { c.innerHTML = `<div class="tarjeta vacio"><h1>Primero crea tu mercado</h1><button class="btn primario grande" id="bCr">Crear mi mercado</button></div>`; $("#bCr").onclick = () => ir("mercado"); return; }
+  if (!E.analisis) { E.analisis = (await api("analisis/ultimo")).analisis; if (E.vista !== "tiktokfb") return; }
+  const nom = E.estado.activo, q = encodeURIComponent(nom), tag = encodeURIComponent(hashtagJS(nom));
+  const pais = (E.estado.pais || "MX").toUpperCase();
+  const pg = (E.analisis && E.analisis.pegados) || {};
+  const enl = {
+    tiktok: [[`Ver #${hashtagJS(nom)} en TikTok`, `https://www.tiktok.com/tag/${tag}`], [`Buscar «${nom}» en TikTok`, `https://www.tiktok.com/search?q=${q}`], [`Hashtags en tendencia en TikTok (${pais})`, `https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/es?countryCode=${pais}&period=7`]],
+    facebook: [[`Anuncios activos de «${nom}» (Biblioteca de anuncios)`, `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${pais}&q=${q}&search_type=keyword_unordered`], [`Buscar «${nom}» en Facebook`, `https://www.facebook.com/search/top?q=${q}`], [`Ver #${hashtagJS(nom)} en Instagram`, `https://www.instagram.com/explore/tags/${tag}/`]],
+  };
+  const resultado = (r) => !r ? "" : `<div style="margin-top:16px"><p class="chico">${fuente(r.red)} Analizado ${esc(fechaBonita(r.fecha))} · ${fnum(r.lineas)} renglones</p>
+      ${r.anunciantes.length ? `<h3 style="margin:12px 0 6px">Quién se anuncia</h3><ul class="lista">${r.anunciantes.map((a) => `<li><div class="txt"><b>${esc(a.nombre)}</b></div><span class="chip">${a.anuncios} anuncio${a.anuncios === 1 ? "" : "s"}</span></li>`).join("")}</ul>` : ""}
+      ${r.precios.length ? `<h3 style="margin:12px 0 6px">Precios que mencionan</h3><div class="chips-texto">${r.precios.map((p) => `<span>${esc(p)}</span>`).join("")}</div>` : ""}
+      ${r.ofertas.length ? `<h3 style="margin:12px 0 6px">Ofertas y ganchos</h3><ul class="lista">${r.ofertas.map((o) => `<li><div class="txt">${esc(o)}</div><span class="acc"><button class="btn fantasma" data-cop="${esc(o)}">Copiar</button></span></li>`).join("")}</ul>` : ""}
+      ${r.hashtags.length ? `<h3 style="margin:12px 0 6px">Hashtags</h3><div class="hashtags">${r.hashtags.map((h) => `<span>#${esc(h.hashtag)} <small>×${h.veces}</small></span>`).join("")}</div>` : ""}
+      ${r.temas.length ? `<h3 style="margin:12px 0 6px">Temas que más se repiten</h3><div class="chips-texto">${r.temas.map((t) => `<span>${esc(t.tema)} ×${t.veces}</span>`).join("")}</div>` : ""}</div>`;
+  const tarjeta = (k, nombre, que) => `<section class="red-card c-${k}"><h2>${fuente(nombre)} ${nombre}</h2><p class="que">${que}</p>
+      <ol class="pasos-pegar"><li>Abre la página aquí abajo (se abre dentro del programa; la primera vez inicia sesión si te la pide).</li>
+        <li>En esa ventana presiona <kbd>Ctrl</kbd>+<kbd>A</kbd> y luego <kbd>Ctrl</kbd>+<kbd>C</kbd>. Si bajas un poco antes, se copian más resultados.</li>
+        <li>Pega aquí con <kbd>Ctrl</kbd>+<kbd>V</kbd> y presiona «Analizar lo que pegué».</li></ol>
+      <div class="enlaces-red">${enl[k].map(([t, u]) => `<a href="#" data-dentro="${esc(u)}" data-tit="${esc(t)}">${esc(t)}</a>`).join("")}</div>
+      <textarea class="pegar" id="t_${k}" placeholder="Pega aquí lo que copiaste de ${nombre}…" style="margin-top:14px"></textarea>
+      <div class="fila" style="margin-top:8px"><button class="btn primario" data-pegar="${k}">Analizar lo que pegué</button></div>
+      <div id="r_${k}">${resultado(pg[k])}</div></section>`;
+  c.innerHTML = `<h1>TikTok y Facebook</h1><p class="sub">Estas redes no dejan que los programas lean sus tendencias solos. Aquí las abres dentro del programa, copias la página y el programa la analiza por ti: quién se anuncia, precios, ofertas, hashtags y temas. Todo se suma a tus ideas creativas.</p>
+    <div class="redes-grid">${tarjeta("tiktok", "TikTok", "Lo que más pega en el hashtag de tu mercado y los hashtags en tendencia del país.")}${tarjeta("facebook", "Facebook", "Los anuncios que está pagando tu competencia: precios, ofertas y cómo lo dicen.")}</div>`;
+  $$("[data-dentro]", c).forEach((a) => (a.onclick = (e) => { e.preventDefault(); api("abrir", { url: a.dataset.dentro, dentro: true, titulo: a.dataset.tit }); }));
+  $$("[data-cop]", c).forEach((b) => (b.onclick = () => copiar(b.dataset.cop)));
+  $$("[data-pegar]", c).forEach((b) => (b.onclick = async () => {
+    const red = b.dataset.pegar, texto = $("#t_" + red).value;
+    b.disabled = true; b.textContent = "Analizando…";
+    try {
+      const r = await api("pegar", { red, texto });
+      E.analisis = r.analisis;
+      $("#r_" + red).innerHTML = resultado(r.pegado);
+      $("#t_" + red).value = "";
+      $$("[data-cop]", $("#r_" + red)).forEach((x) => (x.onclick = () => copiar(x.dataset.cop)));
+      aviso(`Listo: ${r.pegado.hashtags.length} hashtags, ${r.pegado.temas.length} temas${r.pegado.anunciantes.length ? `, ${r.pegado.anunciantes.length} anunciantes` : ""}. Se sumaron a tus ideas creativas.`, "", `${r.pegado.red} analizado`);
+    } catch (err) { aviso(err.message, "error"); }
+    finally { b.disabled = false; b.textContent = "Analizar lo que pegué"; }
+  }));
+}
 
 // ------------------------------------------------------------ EN VIVO
 const VIVO = { trabajo: null, error: null, auto: (() => { try { return localStorage.getItem("vivoAuto") !== "0"; } catch { return true; } })(), reloj: null };
@@ -687,7 +843,7 @@ function pintarComparacion(r) {
     $("#cExp").onclick = () => exportar("comparacion", ["Fecha", ...r.series.map((s) => s.palabra)], r.fechas.map((f, j) => [f, ...r.series.map((s) => s.serie[j])]));
   } else {
     res.innerHTML = `${r.aviso ? `<p class="nota">${esc(r.aviso)}</p>` : ""}<div class="mini-graficas">${r.series.map((s, i) => `<div class="mini"><div class="cab"><h3>${esc(s.palabra)}</h3>${chipVer(s.veredicto)}</div>
-        <p class="chico" style="margin:0 0 6px">${s.error ? esc(errorAmable(s.error)) : `Cambio reciente: <b class="cambio ${s.cambio > 0 ? "pos" : s.cambio < 0 ? "neg" : ""}">${fpct(s.cambio)}</b>`}</p><div id="cg${i}"></div></div>`).join("")}</div>`;
+        <p class="chico" style="margin:0 0 6px">${s.error ? esc(errorAmable(s.error)) : `Cambio reciente: <b class="cambio ${s.cambio > 0 ? "pos" : s.cambio < 0 ? "neg" : ""}">${fpct(s.cambio)}</b>${s.periodo && s.periodo !== "3 meses" ? ` · medido en ${esc(s.periodo)}` : ""}`}</p><div id="cg${i}"></div></div>`).join("")}</div>`;
     r.series.forEach((s, i) => { if (s.serie.length) graficaLinea($("#cg" + i), { etiquetas: s.fechas, series: [{ nombre: s.palabra, valores: s.serie, color: COLORES[i % 5], area: true }], alto: 170 }); });
   }
 }

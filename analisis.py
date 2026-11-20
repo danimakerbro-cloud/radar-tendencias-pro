@@ -209,12 +209,20 @@ def sugerir_palabras(nombre: str, pais: str = "MX", idioma: str = "es-419") -> d
         tipo = clasificar(sug, pais)
         # Si el nombre era corto, solo cuentan las que contienen la forma completa
         relacionado = all(t in clave.split() for t in base) if corto else True
-        marcada = tipo in ("venta", "ideas") and relacionado and len(clave.split()) <= 6
+        # Se marcan frases cortas: las muy largas casi no tienen búsquedas medibles
+        marcada = tipo in ("venta", "ideas") and relacionado and len(clave.split()) <= len(base) + 2
         if tipo in ("info", "fuera") or not relacionado:
             tipo = "info" if tipo != "fuera" else "fuera"
         salida.append({"texto": sug, "tipo": tipo, "marcada": marcada})
     orden = {"general": 0, "venta": 1, "ideas": 2, "info": 3, "fuera": 4}
-    salida = salida[:2] + sorted(salida[2:], key=lambda x: (orden[x["tipo"]], not x["marcada"]))
+    salida = salida[:2] + sorted(salida[2:], key=lambda x: (orden[x["tipo"]], not x["marcada"],
+                                                            len(x["texto"].split())))
+    # Máximo 8 marcadas (las que se analizan); el resto queda para que tú decidas
+    n = 0
+    for x in salida:
+        if x["marcada"]:
+            n += 1
+            x["marcada"] = n <= 8
     return {"nombre": nombre, "nombre_sugerido": nombre_sugerido, "palabras": salida[:45]}
 
 
@@ -241,8 +249,20 @@ def interes_por_palabra(gt: m.GoogleTrends, palabras: list[str], tiempo: str = "
             pendientes.remove(p)
             continue
         serie = series[p]
-        resultados.append({"palabra": p, "serie": serie, "fechas": [f.date().isoformat() for f in fechas],
-                           **veredicto(serie, umbral_z)})
+        fila = {"palabra": p, "serie": serie, "fechas": [f.date().isoformat() for f in fechas],
+                "periodo": "3 meses", **veredicto(serie, umbral_z)}
+        # Mercados chicos: por día casi todo sale en cero, pero por semana sí se ve la tendencia
+        if fila["veredicto"] == "Muy pocas búsquedas" and tiempo == "today 3-m" and max(serie or [0]) > 0:
+            try:
+                time.sleep(0.8)
+                f2, s2 = gt.interes_en_el_tiempo([p], "today 12-m", propiedad)
+                v2 = veredicto(s2[p], umbral_z)
+                if v2["veredicto"] != "Muy pocas búsquedas":
+                    fila.update({"serie": s2[p], "fechas": [f.date().isoformat() for f in f2],
+                                 "periodo": "12 meses, por semana", **v2})
+            except m.ErrorFuente:
+                pass
+        resultados.append(fila)
         pendientes.remove(p)
         time.sleep(0.8)
     # Lo que faltó por el límite de Google: en grupos de 5 (cambia la escala, no la dirección)
@@ -479,6 +499,276 @@ def _tokens_simples(texto: str) -> set:
 
 
 # ---------------------------------------------------------------------------
+# Ideas creativas: lo creativo que sube la gente (reels, videos, imágenes, hashtags)
+# ---------------------------------------------------------------------------
+# Cómo busca la gente ideas para su contenido o su evento
+_CREATIVO_SUFIJOS = [" ideas", " decoracion", " tendencias", " tematica", " fotos", " videos", " reels", " baile",
+                     " entrada", " sorpresa", " colores", " originales", " 2026", " 2027", " diy", " aesthetic"]
+_CREATIVO_PREFIJOS = ["ideas para ", "ideas de ", "decoracion de ", "fotos de ", "videos de ", "tendencias en "]
+_YT_SUFIJOS = [" ideas", " baile", " decoracion", " tiktok", " tendencias", " entrada", " sorpresa", " shorts"]
+
+# Palabras que no dicen nada del tema creativo
+_SIN_HASHTAG = re.compile(r"#[^\s#]+")   # los hashtags van en su propia lista; en temas solo palabras reales
+_RUIDO_TEMAS = {
+    "mxn", "pesos", "tipo", "publicidad", "anuncio", "anuncios",
+    "ideas", "idea", "para", "como", "que", "con", "mas", "video", "videos", "foto", "fotos", "2025", "2026", "2027",
+    "tiktok", "reels", "reel", "shorts", "short", "viral", "virales", "fyp", "parati", "foryou", "trend", "trending",
+    "tendencias", "tendencia", "nuevo", "nueva", "nuevos", "mejor", "mejores", "los", "las", "una", "uno", "mis", "tus",
+    "sus", "este", "esta", "hoy", "dia", "todo", "todos", "aqui", "asi", "muy", "bien", "solo", "ser", "hacer",
+    "xyzbca", "fypシ", "paratii", "explore", "explorar", "instagram", "youtube", "pinterest", "facebook", "google",
+    "cerca", "precio", "precios", "mexico", "cdmx", "aesthetic", "originales", "original", "parte", "part",
+    # textos de las páginas de TikTok y Facebook (botones, avisos)
+    "publicidad", "patrocinado", "sponsored", "anuncio", "anuncios", "activo", "identificador", "biblioteca",
+    "circulacion", "plataformas", "detalles", "enviar", "mensaje", "cotizar", "whatsapp", "informacion", "registrarte",
+    "seguir", "siguiendo", "compartir", "comentarios", "comentar", "gusta", "responder", "iniciar", "sesion", "ver",
+    "mostrar", "traducir", "subtitulos", "cargar", "perfil", "empresa", "programa", "terminos", "politicas",
+    "privacidad", "condiciones", "cookies", "resultados", "filtros", "ordenar", "busqueda", "buscar", "inicio",
+    "versiones", "anunciante", "desde", "hace", "semanas", "semana", "dias", "horas",
+}
+
+
+def _texto_tokens(texto: str, quitar: set, formas: dict | None = None) -> list[str]:
+    """Palabras útiles del texto. Se junta el plural con el singular («vaqueros» = «vaquero»);
+    en «formas» se anota cómo la escribe la gente, para mostrarla igual."""
+    salida = []
+    for t in m.normalizar(texto).split():
+        if len(t) <= 2 or t in m._VACIAS or t in _RUIDO_TEMAS or t.isdigit():
+            continue
+        r = m._raiz(t)
+        if r in quitar:
+            continue
+        if formas is not None:
+            formas.setdefault(r, {}).setdefault(t, 0)
+            formas[r][t] += 1
+        salida.append(r)
+    return salida
+
+
+def temas_creativos(items: list[tuple[str, str]], palabras_mercado: list[str], minimo: int = 2) -> list[dict]:
+    """Temas (palabras y pares de palabras) que más se repiten en lo creativo de todas las redes.
+    items: [(texto, red)]. Se quitan las palabras del propio mercado."""
+    quitar = {m._raiz(t) for p in palabras_mercado for t in m.normalizar(p).split()}
+    quitar |= {m._raiz(m.normalizar(m.hashtag_de(p)).strip()) for p in palabras_mercado}
+    # Lo que aparece en casi todo es otra forma de nombrar al mercado (ej. «quinceañera»), no una idea
+    if len(items) >= 10:
+        frecuencia: dict[str, int] = {}
+        for texto, _ in items:
+            for t in set(_texto_tokens(_SIN_HASHTAG.sub(" ", texto), quitar)):
+                frecuencia[t] = frecuencia.get(t, 0) + 1
+        quitar |= {t for t, n in frecuencia.items() if n > len(items) * 0.4}
+    cuenta: dict[str, dict] = {}
+    formas: dict[str, dict] = {}
+    # Un hashtag cuenta como tema solo si es una palabra que la gente también escribe suelta (#vals sí, #vestidoxv no)
+    vocab = set()
+    for texto, _ in items:
+        vocab.update(_texto_tokens(_SIN_HASHTAG.sub(" ", texto), quitar))
+    for texto, red in items:
+        toks = _texto_tokens(_SIN_HASHTAG.sub(" ", texto), quitar, formas)
+        extra = [t for t in _texto_tokens(" ".join(_SIN_HASHTAG.findall(texto)).replace("#", " "), quitar) if t in vocab]
+        vistos = set()
+        for i, t in enumerate(toks + extra):
+            for clave in (t, f"{t} {toks[i + 1]}" if i + 1 < len(toks) else None):
+                if not clave or clave in vistos:
+                    continue
+                vistos.add(clave)
+                c = cuenta.setdefault(clave, {"tema": clave, "veces": 0, "fuentes": []})
+                c["veces"] += 1
+                if red not in c["fuentes"]:
+                    c["fuentes"].append(red)
+    temas = [c for c in cuenta.values() if c["veces"] >= minimo]
+    # Si un par de palabras aparece casi tanto como su palabra suelta, se queda el par (es más específico)
+    pares = {c["tema"]: c for c in temas if " " in c["tema"]}
+    for par, c in pares.items():
+        for t in par.split():
+            suelta = next((x for x in temas if x["tema"] == t), None)
+            if suelta and c["veces"] >= suelta["veces"] * 0.6:
+                suelta["oculto"] = True
+    temas = [c for c in temas if not c.get("oculto")]
+    for c in temas:
+        c["tema"] = " ".join(max(formas.get(r, {r: 1}).items(), key=lambda kv: kv[1])[0] for r in c["tema"].split())
+    temas.sort(key=lambda c: -(c["veces"] * (1 + 0.6 * (len(c["fuentes"]) - 1))))
+    return temas[:24]
+
+
+_HASHTAG = re.compile(r"#([^\s#.,;:!?¡¿()\[\]{}\"'“”]+)")
+
+
+def hashtags_de_textos(items: list[tuple[str, str]], minimo: int = 1) -> list[dict]:
+    cuenta: dict[str, dict] = {}
+    for texto, red in items:
+        for h in {x.lower() for x in _HASHTAG.findall(texto or "")}:
+            if len(h) < 3 or m.normalizar(h).strip() in _RUIDO_TEMAS or h in ("fyp", "fypシ", "parati", "viral"):
+                continue
+            c = cuenta.setdefault(h, {"hashtag": h, "veces": 0, "fuentes": []})
+            c["veces"] += 1
+            if red not in c["fuentes"]:
+                c["fuentes"].append(red)
+    salida = [c for c in cuenta.values() if c["veces"] >= minimo]
+    salida.sort(key=lambda c: (-c["veces"], -len(c["fuentes"])))
+    return salida[:40]
+
+
+def analizar_pegado(red: str, texto: str, mercado: m.Mercado) -> dict:
+    """Lo que copiaste de una página de TikTok o Facebook: hashtags, anunciantes, precios, ofertas y temas."""
+    texto = (texto or "")[:400000]
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    nombre_red = {"tiktok": "TikTok", "facebook": "Facebook", "instagram": "Instagram"}.get(red, red.title())
+    anunciantes: dict[str, int] = {}
+    for i, l in enumerate(lineas):
+        if l in ("Publicidad", "Patrocinado", "Sponsored") and i > 0 and len(lineas[i - 1]) < 80:
+            anunciantes[lineas[i - 1]] = anunciantes.get(lineas[i - 1], 0) + 1
+    precios = []
+    for p in re.findall(r"\$\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:MXN|mxn|pesos))?", texto):
+        p = " ".join(p.split())
+        if p not in precios:
+            precios.append(p)
+    claves = re.compile(r"(descuento|% ?off|\d+ ?%|promo|gratis|2x1|meses sin intereses|msi|aparta|incluye|paquete|"
+                        r"oferta|regalo|cortes[ií]a|solo este mes|cupo|reserva)", re.I)
+    ofertas = []
+    for l in lineas:
+        if claves.search(l) and 12 <= len(l) <= 220 and l not in ofertas:
+            ofertas.append(l)
+    no_tema = set(anunciantes) | {"Publicidad", "Patrocinado", "Sponsored"}
+    items = [(l, nombre_red) for l in lineas if len(l) > 3 and l not in no_tema]
+    return {
+        "red": nombre_red, "fecha": dt.datetime.now().isoformat(timespec="minutes"), "lineas": len(lineas),
+        "hashtags": hashtags_de_textos(items)[:25],
+        "anunciantes": sorted(({"nombre": k, "anuncios": v} for k, v in anunciantes.items()),
+                              key=lambda x: -x["anuncios"])[:20],
+        "precios": precios[:15], "ofertas": ofertas[:15],
+        "temas": temas_creativos(items, mercado.palabras + [mercado.nombre], 2)[:15],
+    }
+
+
+def ideas_creativas(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanzar=None,
+                    palabras: list[str] | None = None, previo: dict | None = None,
+                    desde: int = 0, hasta: int = 100) -> dict:
+    """Lo creativo que sube la gente sobre el mercado: búsquedas de ideas (Google y YouTube),
+    lo visual que sube (Google Imágenes), Shorts que pegan, Instagram por formato, Pinterest
+    y lo que pegaste de TikTok/Facebook. Arriba, los temas y hashtags que se repiten entre redes."""
+    pais = cfg.get("pais") or "MX"
+    idioma = cfg.get("idioma", "es-419")
+    pal = (palabras or mercado.palabras)[:3]
+    principal = mercado.nombre if len(mercado.nombre.split()) <= 3 else (pal[0] if pal else mercado.nombre)
+    previo = previo or {}
+    sal = {"fecha": dt.datetime.now().isoformat(timespec="minutes"), "errores": {}}
+    todo: list[tuple[str, str]] = []          # (texto, red) para temas y hashtags
+
+    def avanza(frac, texto):
+        if al_avanzar:
+            al_avanzar(int(desde + (hasta - desde) * frac), texto)
+
+    def sirve(q):
+        return not mercado.excluido(q) and clasificar(q, pais) not in ("info", "fuera")
+
+    # 1) Lo que busca la gente para inspirarse (Google)
+    avanza(0.05, "Buscando las ideas que más busca la gente en Google")
+    vistos, busq = set(), []
+    consultas = [principal + s for s in _CREATIVO_SUFIJOS] + [p + principal for p in _CREATIVO_PREFIJOS]
+    for i, q in enumerate(consultas):
+        try:
+            res = m.ideas_palabras(q, pais, idioma, modificadores=[""])
+        except m.ErrorFuente:
+            continue
+        for s, _ in res[:6]:
+            k = m.normalizar(s).strip()
+            if k not in vistos and sirve(s):
+                vistos.add(k)
+                busq.append({"texto": s, "fuente": "Google"})
+                todo.append((s, "Google"))
+        if i % 5 == 4:
+            avanza(0.05 + 0.25 * i / len(consultas), "Buscando las ideas que más busca la gente en Google")
+    # 2) Lo que busca la gente en YouTube (videos, bailes, tutoriales)
+    avanza(0.32, "Buscando qué videos buscan en YouTube")
+    for s in _YT_SUFIJOS:
+        for x in m.sugerencias_youtube(principal + s, pais, idioma)[:6]:
+            k = m.normalizar(x).strip()
+            if k not in vistos and sirve(x):
+                vistos.add(k)
+                busq.append({"texto": x, "fuente": "YouTube"})
+                todo.append((x, "YouTube"))
+    sal["busquedas"] = busq[:60]
+
+    # 3) Lo visual que sube (Google Imágenes): se toma del análisis de redes si ya existe
+    avanza(0.45, "Revisando lo visual que sube en Google Imágenes")
+    img = (((previo.get("redes") or {}).get("redes") or {}).get("imagenes") or {}).get("suben")
+    if img is None:
+        img = []
+        try:
+            r = gt.relacionadas(principal, "today 1-m", "images")
+            img = [{"busqueda": q, "crecimiento": texto_crecimiento(v), "valor": valor_crecimiento(v),
+                    "fuente": "Google Imágenes"} for q, v in r["subiendo"] if sirve(q)]
+        except m.ErrorFuente as e:
+            sal["errores"]["imagenes"] = str(e)
+    sal["imagenes"] = img[:15]
+    todo += [(x["busqueda"], "Google Imágenes") for x in img]
+
+    # 4) Videos cortos que pegan (YouTube Shorts, API oficial con clave)
+    key = cfg.get("youtube_api_key")
+    if key:
+        avanza(0.55, "Buscando los Shorts que más pegan")
+        try:
+            vids = m.youtube_tendencia(key, mercado.consulta_youtube(), 14, pais, idioma.split("-")[0], 50, mercado,
+                                       duracion="short")
+            sal["shorts"] = [dict(_limpiar_fechas(v), fuente="YouTube") for v in vids[:15]]
+            todo += [(v.get("texto", ""), "YouTube") for v in vids]
+        except m.ErrorFuente as e:
+            sal["shorts"], sal["errores"]["shorts"] = [], str(e)
+    else:
+        sal["shorts"] = None
+
+    # 5) Instagram por formato (reels, fotos, carruseles), API oficial
+    if cfg.get("instagram_token") and cfg.get("instagram_usuario"):
+        avanza(0.7, "Revisando qué publican en Instagram")
+        pubs = []
+        for p in pal[:2]:
+            try:
+                r = m.instagram_hashtag(cfg["instagram_token"], cfg["instagram_usuario"], p, 25)
+                pubs += [dict(x, hashtag=r["hashtag"], fuente="Instagram") for x in r["publicaciones"]]
+            except m.ErrorFuente as e:
+                sal["errores"]["instagram"] = str(e)
+        pubs = list({x["url"]: x for x in pubs}.values())
+        formatos: dict[str, dict] = {}
+        for x in pubs:
+            f = formatos.setdefault(x["formato"], {"formato": x["formato"], "publicaciones": 0, "interaccion": 0})
+            f["publicaciones"] += 1
+            f["interaccion"] += (x["likes"] or 0) + 3 * (x["comentarios"] or 0)
+        for f in formatos.values():
+            f["promedio"] = round(f["interaccion"] / f["publicaciones"]) if f["publicaciones"] else 0
+        pubs.sort(key=lambda x: -((x["likes"] or 0) + 3 * (x["comentarios"] or 0)))
+        sal["instagram"] = {"publicaciones": [{k: v for k, v in x.items() if k != "texto_completo"} for x in pubs[:12]],
+                            "formatos": sorted(formatos.values(), key=lambda f: -f["promedio"])}
+        todo += [(x.get("texto_completo") or x["texto"], "Instagram") for x in pubs]
+    else:
+        sal["instagram"] = None
+
+    # 6) Pinterest (del análisis de redes) y lo que pegaste de TikTok/Facebook
+    pins = (((previo.get("redes") or {}).get("redes") or {}).get("pinterest") or {}).get("suben") or []
+    sal["pinterest"] = pins[:12]
+    todo += [(x["busqueda"], "Pinterest") for x in pins]
+
+    avanza(0.92, "Cruzando los temas creativos de todas las redes")
+    sal["base"] = [list(x) for x in todo[:1500]]    # lo que salió de internet, para volver a cruzar al pegar
+    cruzar_ideas(sal, previo.get("pegados"), mercado)
+    avanza(1, "Listo")
+    return sal
+
+
+def cruzar_ideas(ideas: dict, pegados: dict | None, mercado: m.Mercado) -> dict:
+    """Junta lo de internet con lo que pegaste de TikTok/Facebook y saca temas y hashtags que se repiten."""
+    todo = [tuple(x) for x in ideas.get("base") or []]
+    for pg in (pegados or {}).values():
+        for t in pg.get("temas", []):
+            todo += [(t["tema"], pg["red"])] * min(t["veces"], 5)
+        for h in pg.get("hashtags", []):
+            todo += [("#" + h["hashtag"], pg["red"])] * min(h["veces"], 5)
+    ideas["temas"] = temas_creativos(todo, mercado.palabras + [mercado.nombre])
+    ideas["hashtags"] = hashtags_de_textos(todo)
+    ideas["redes"] = sorted({red for _, red in todo})
+    return ideas
+
+
+# ---------------------------------------------------------------------------
 # En vivo: lo más viral ahora (últimas horas)
 # ---------------------------------------------------------------------------
 def _limpiar_fechas(d: dict) -> dict:
@@ -641,9 +931,9 @@ def analizar_mercado(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
     google_suben = [dict(x, tipo=clasificar(x["busqueda"], pais)) for x in despegan]
 
     # 3) Investigación en redes (53-80%)
+    por_pop = sorted(rep.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
+    orden = [c["palabra"] for c in por_pop if c.get("serie")] or palabras
     try:
-        por_pop = sorted(rep.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
-        orden = [c["palabra"] for c in por_pop if c.get("serie")] or palabras
         rep["redes"] = investigar_redes(cfg, mercado, gt, al_avanzar, 53, 80, google_suben, orden)
         for clave in ("youtube", "imagenes", "shopping", "pinterest"):
             despegan += [dict(x) for x in rep["redes"]["redes"].get(clave, {}).get("suben", [])]
@@ -655,15 +945,22 @@ def analizar_mercado(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
     rep["despegan"] = separar_por_tipo(despegan, pais)
     rep["populares"] = separar_por_tipo(populares, pais)
 
-    # 4) Lo que la gente pregunta (80-86%)
-    avanza(81, "Revisando qué pregunta la gente en Google")
+    # 3b) Ideas creativas (80-86%)
+    try:
+        rep["ideas"] = ideas_creativas(cfg, mercado, gt, al_avanzar, orden,
+                                       {"redes": rep.get("redes")}, 80, 86)
+    except m.ErrorFuente as e:
+        rep["ideas"], rep["errores"]["ideas"] = None, str(e)
+
+    # 4) Lo que la gente pregunta (86-88%)
+    avanza(86, "Revisando qué pregunta la gente en Google")
     try:
         rep["preguntas"] = [dict(p, fuente="Google") for p in preguntas_gente(palabras, mercado, pais, idioma)]
     except m.ErrorFuente as e:
         rep["preguntas"], rep["errores"]["preguntas"] = [], str(e)
 
     # 4) Temas de hoy (80-85%)
-    avanza(87, "Revisando lo más buscado hoy")
+    avanza(88, "Revisando lo más buscado hoy")
     try:
         hoy = m.tendencias_del_dia(pais)
         rep["hoy_total"] = len(hoy)
@@ -705,6 +1002,7 @@ def analizar_mercado(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
     rep["resumen"] = {
         "redes": ["Google"] + redes_ok,
         "coinciden": len((rep.get("redes") or {}).get("coinciden") or []),
+        "temas_creativos": len((rep.get("ideas") or {}).get("temas") or []),
         "suben": sum(1 for p in pal if p["veredicto"] in ("Explotando", "Sube fuerte", "Sube")),
         "bajan": sum(1 for p in pal if p["veredicto"] in ("Baja", "Baja fuerte")),
         "estables": sum(1 for p in pal if p["veredicto"] == "Estable"),

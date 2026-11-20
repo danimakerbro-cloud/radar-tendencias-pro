@@ -101,27 +101,46 @@ class Estado:
         return m.mercado_activo(self.cfg)
 
     # ---------------------------------------------------- trabajos en segundo plano
-    def trabajo(self, nombre: str, fn, *args) -> str:
+    def trabajo(self, nombre: str, fn, *args, mercado: str | None = None) -> str:
         tid = uuid.uuid4().hex[:10]
         t = {"id": tid, "nombre": nombre, "estado": "corriendo", "pct": 0, "paso": "Empezando…",
-             "resultado": None, "error": None, "inicio": time.time()}
+             "resultado": None, "error": None, "inicio": time.time(), "mercado": mercado, "cancelado": False}
         self.trabajos[tid] = t
 
         def avanzar(pct, paso):
+            if t["cancelado"]:
+                raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
             t["pct"], t["paso"] = max(t["pct"], min(99, int(pct))), paso
 
         def correr():
             try:
-                t["resultado"] = _json(fn(avanzar, *args))
+                res = _json(fn(avanzar, *args))
+                if t["cancelado"]:
+                    raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
+                t["resultado"] = res
                 t["pct"], t["estado"] = 100, "listo"
             except m.ErrorFuente as e:
-                t["error"], t["estado"] = str(e), "error"
+                t["error"], t["estado"] = str(e), ("cancelado" if t["cancelado"] else "error")
             except Exception as e:  # noqa: BLE001
                 registrar_error(traceback.format_exc())
                 t["error"], t["estado"] = f"Error inesperado: {e}", "error"
 
         threading.Thread(target=correr, daemon=True).start()
         return tid
+
+    def cancelar_trabajos(self):
+        """Cancela análisis en curso de un mercado (al cambiarlo o borrarlo) para que no se mezclen."""
+        for t in self.trabajos.values():
+            if t["estado"] == "corriendo" and t.get("mercado"):
+                t["cancelado"] = True
+
+    def guardar_analisis(self, nombre: str, rep: dict):
+        """Solo se guarda si ese mercado sigue siendo el actual."""
+        if self.cfg.get("mercado_activo") != nombre:
+            raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
+        os.makedirs(os.path.dirname(self.ruta_analisis(nombre)), exist_ok=True)
+        with open(self.ruta_analisis(nombre), "w", encoding="utf-8") as f:
+            json.dump(_json(rep), f, ensure_ascii=False)
 
     # ---------------------------------------------------- análisis guardado
     def ruta_analisis(self, nombre: str) -> str:
@@ -202,12 +221,10 @@ def accion_investigar_redes(_d):
                                       "errores": {}, "avisos": [], "parcial": True}
         rep["redes"] = _json(r)
         rep["fecha_redes"] = dt.datetime.now().isoformat(timespec="minutes")
-        os.makedirs(os.path.dirname(E.ruta_analisis(mer.nombre)), exist_ok=True)
-        with open(E.ruta_analisis(mer.nombre), "w", encoding="utf-8") as f:
-            json.dump(_json(rep), f, ensure_ascii=False)
+        E.guardar_analisis(mer.nombre, rep)
         return rep
 
-    return {"trabajo": E.trabajo("redes_sociales", trabajo)}
+    return {"trabajo": E.trabajo("redes_sociales", trabajo, mercado=mer.nombre)}
 
 
 def accion_sugerir(d):
@@ -240,17 +257,8 @@ def accion_guardar_mercado(d):
             viejos.pop(d["nombre_anterior"], None)
         else:
             # Mercado nuevo: reemplaza por completo al anterior (palabras, análisis, en vivo y sus alertas)
-            palabras_viejas = {p for v in viejos.values() for p in v.get("palabras", [])}
-            for t in E.db.terminos():
-                if t in palabras_viejas:
-                    E.db.quitar_termino(t)
-            for n in list(viejos):
-                try:
-                    os.remove(E.ruta_analisis(n))
-                except OSError:
-                    pass
+            _limpiar_todo()
             viejos = {}
-            E.vivo = None
         viejos[nombre] = mer.a_dict()
         E.cfg["mercados"] = viejos
         E.cfg["mercado_activo"] = nombre
@@ -266,17 +274,24 @@ def accion_activar(d):
     return accion_estado({})
 
 
-def accion_borrar_mercado(d):
+def _limpiar_todo():
+    """Borra el mercado y todo lo que salió de él: análisis, en vivo, alertas y procesos en curso."""
+    E.cancelar_trabajos()
+    viejos = E.cfg.get("mercados") or {}
+    palabras_viejas = {p for v in viejos.values() for p in v.get("palabras", [])}
+    for t in E.db.terminos():
+        if t in palabras_viejas:
+            E.db.quitar_termino(t)
+    shutil.rmtree(os.path.join(m.APP_DIR, "analisis"), ignore_errors=True)
+    E.vivo = None
+    E.cfg["mercados"], E.cfg["mercado_activo"] = {}, ""
+
+
+def accion_borrar_mercado(_d):
+    """Botón «Borrar mercado»: deja el programa limpio para empezar otra vez."""
     with E.lock:
-        nombre = d.get("nombre") or ""
-        (E.cfg.get("mercados") or {}).pop(nombre, None)
-        if E.cfg.get("mercado_activo") == nombre:
-            E.cfg["mercado_activo"] = next(iter(sorted(E.cfg.get("mercados") or {})), "")
+        _limpiar_todo()
         E.guardar()
-        try:
-            os.remove(E.ruta_analisis(nombre))
-        except OSError:
-            pass
     return accion_estado({})
 
 
@@ -302,12 +317,13 @@ def accion_analizar(_d):
 
     def trabajo(avanzar):
         rep = an.analizar_mercado(cfg, mer, E.gt, avanzar)
-        os.makedirs(os.path.dirname(E.ruta_analisis(mer.nombre)), exist_ok=True)
-        with open(E.ruta_analisis(mer.nombre), "w", encoding="utf-8") as f:
-            json.dump(_json(rep), f, ensure_ascii=False)
+        previo = E.ultimo_analisis() or {}
+        if previo.get("pegados"):
+            rep["pegados"] = previo["pegados"]          # lo que pegaste de TikTok y Facebook se conserva
+        E.guardar_analisis(mer.nombre, rep)
         return rep
 
-    return {"trabajo": E.trabajo("analizar", trabajo)}
+    return {"trabajo": E.trabajo("analizar", trabajo, mercado=mer.nombre)}
 
 
 def accion_en_vivo(_d):
@@ -321,6 +337,8 @@ def accion_en_vivo(_d):
 
     def trabajo(avanzar):
         r = an.en_vivo(cfg, mer, E.gt, avanzar, orden)
+        if E.cfg.get("mercado_activo") != mer.nombre:
+            raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
         E.vivo = _json(r)
         if r["picos"]:
             E.avisos.append({"fecha": r["fecha"], "picos": [{"termino": p, "fuente": "Google (últimas horas)",
@@ -330,7 +348,49 @@ def accion_en_vivo(_d):
                                                             for p in r["picos"]]})
         return r
 
-    return {"trabajo": E.trabajo("en_vivo", trabajo)}
+    return {"trabajo": E.trabajo("en_vivo", trabajo, mercado=mer.nombre)}
+
+
+def _orden_por_popularidad(previo: dict):
+    por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
+    return [c["palabra"] for c in por_pop if c.get("serie")] or None
+
+
+def accion_ideas(_d):
+    """Busca de nuevo solo las ideas creativas (reels, videos, imágenes, hashtags)."""
+    mer = E.mercado
+    if not mer:
+        raise m.ErrorFuente("Primero crea tu mercado.")
+    cfg = dict(E.cfg)
+
+    def trabajo(avanzar):
+        previo = E.ultimo_analisis() or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
+                                         "errores": {}, "avisos": [], "parcial": True}
+        previo["ideas"] = an.ideas_creativas(cfg, mer, E.gt, avanzar, _orden_por_popularidad(previo), previo)
+        E.guardar_analisis(mer.nombre, previo)
+        return previo
+
+    return {"trabajo": E.trabajo("ideas", trabajo, mercado=mer.nombre)}
+
+
+def accion_pegar(d):
+    """Analiza el texto que copiaste de una página de TikTok o Facebook y lo guarda con tu mercado."""
+    mer = E.mercado
+    if not mer:
+        raise m.ErrorFuente("Primero crea tu mercado.")
+    red = d.get("red") or ""
+    texto = d.get("texto") or ""
+    if len(texto.strip()) < 40:
+        raise m.ErrorFuente("Pegaste muy poco texto. En la página presiona Ctrl+A y luego Ctrl+C, y pega aquí.")
+    r = an.analizar_pegado(red, texto, mer)
+    rep = E.ultimo_analisis() or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
+                                  "errores": {}, "avisos": [], "parcial": True}
+    rep.setdefault("pegados", {})[red] = r
+    # Se suman a las ideas creativas sin volver a consultar internet
+    if rep.get("ideas") is not None:
+        an.cruzar_ideas(rep["ideas"], rep["pegados"], mer)
+    E.guardar_analisis(mer.nombre, rep)
+    return {"pegado": r, "analisis": rep}
 
 
 def accion_en_vivo_ultimo(_d):
@@ -542,6 +602,15 @@ def accion_trabajo(d):
 
 def accion_abrir(d):
     url = d.get("url") or ""
+    if url.startswith(("http://", "https://")) and d.get("dentro"):
+        # Ventana dentro del programa (misma sesión de la ventana: inicia sesión una vez y se recuerda)
+        try:
+            import webview
+            if webview.windows:
+                webview.create_window(d.get("titulo") or "Radar de Tendencias Pro", url, width=1200, height=850)
+                return {"ok": True, "dentro": True}
+        except Exception:  # noqa: BLE001
+            pass
     if url.startswith(("http://", "https://")):
         webbrowser.open(url)
     elif url == "carpeta":
@@ -580,7 +649,7 @@ ACCIONES = {
     "alertas": accion_alertas, "alertas/agregar": accion_alerta_agregar,
     "alertas/desde_mercado": accion_alerta_desde_mercado, "alertas/quitar": accion_alerta_quitar,
     "alertas/escanear": accion_alerta_escanear, "avisos": accion_avisos, "trabajo": accion_trabajo,
-    "en_vivo": accion_en_vivo, "en_vivo/ultimo": accion_en_vivo_ultimo,
+    "en_vivo": accion_en_vivo, "en_vivo/ultimo": accion_en_vivo_ultimo, "ideas": accion_ideas, "pegar": accion_pegar,
     "abrir": accion_abrir, "redes/investigar": accion_investigar_redes, "config/probar_instagram": accion_probar_instagram, "exportar": accion_exportar, "actualizacion": accion_actualizacion,
 }
 

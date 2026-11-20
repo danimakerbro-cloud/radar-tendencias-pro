@@ -24,6 +24,8 @@ CÓMO SE USA
    Trabajas un mercado a la vez: al buscar uno nuevo (botón "Cambiar de
    mercado"), el anterior se borra por completo con sus palabras, su
    análisis y sus alertas. Así nunca se mezclan.
+   Botón "Borrar mercado" (arriba y en Mi mercado): borra el mercado, su
+   análisis y sus alertas, y deja el programa como nuevo para empezar.
 
 2. INICIO > "Analizar mi mercado": en 1 a 3 minutos (con barra de avance)
    te muestra:
@@ -41,10 +43,21 @@ CÓMO SE USA
    sube en varias redes a la vez. TikTok, Facebook y X no comparten datos
    de tendencias: el programa abre sus páginas oficiales con un clic.
 
-4. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
+4. IDEAS CREATIVAS: lo creativo que sube la gente sobre tu mercado:
+   ideas que buscan en Google y YouTube, lo visual que sube en Google
+   Imágenes, los Shorts que más pegan, qué formato funciona mejor en
+   Instagram (reels, fotos, carruseles), Pinterest y, arriba de todo, los
+   temas y hashtags que más se repiten entre redes.
+
+5. TIKTOK Y FACEBOOK: abre TikTok o la Biblioteca de anuncios de Facebook
+   dentro del programa, presiona Ctrl+A y Ctrl+C, pégalo y da "Analizar lo
+   que pegué". Te dice quién se anuncia, precios, ofertas, hashtags y
+   temas, y todo se suma a tus ideas creativas.
+
+6. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
    juntas, para ver cuál se busca más.
 
-5. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
+7. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
    sonido cuando algo se dispara; deja el programa abierto).
 
 =====================================================================

@@ -28,7 +28,7 @@ import requests
 # Configuración y rutas
 # ---------------------------------------------------------------------------
 APP_NOMBRE = "Radar de Tendencias Pro"
-APP_VERSION = "1.3.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
+APP_VERSION = "1.4.0"   # GitHub Actions lo reemplaza con la versión de la etiqueta (v1.2.3)
 REPO_URL = "https://github.com/danimakerbro-cloud/radar-tendencias-pro"
 APP_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "RadarTendenciasPro")
 CONFIG_PATH = os.path.join(APP_DIR, "config.json")
@@ -521,7 +521,8 @@ def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 1
         hid = datos["data"][0]["id"]
         r = requests.get(f"{base}/{hid}/{'recent_media' if recientes else 'top_media'}", params={
             "user_id": ig_usuario, "access_token": token, "limit": limite,
-            "fields": "caption,like_count,comments_count,permalink,media_type,timestamp"}, timeout=25)
+            "fields": "caption,like_count,comments_count,permalink,media_type,media_product_type,timestamp"},
+            timeout=25)
         datos = r.json()
         if "error" in datos:
             raise ErrorFuente(f"Instagram: {datos['error'].get('message', 'error')}")
@@ -529,9 +530,11 @@ def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 1
         raise ErrorFuente(f"No se pudo conectar con Instagram: {e}") from None
     pubs = []
     for p in datos.get("data", []):
-        pubs.append({"texto": (p.get("caption") or "")[:160], "likes": p.get("like_count"),
-                     "comentarios": p.get("comments_count"), "url": p.get("permalink"),
-                     "tipo": p.get("media_type"), "fecha": p.get("timestamp")})
+        formato = {"REELS": "Reel", "STORY": "Historia"}.get(p.get("media_product_type") or "") or \
+            {"IMAGE": "Foto", "VIDEO": "Video", "CAROUSEL_ALBUM": "Carrusel"}.get(p.get("media_type") or "", "Publicación")
+        pubs.append({"texto": (p.get("caption") or "")[:160], "texto_completo": (p.get("caption") or "")[:1500],
+                     "likes": p.get("like_count"), "comentarios": p.get("comments_count"), "url": p.get("permalink"),
+                     "tipo": p.get("media_type"), "formato": formato, "fecha": p.get("timestamp")})
     pubs.sort(key=lambda x: -((x["likes"] or 0) + 3 * (x["comentarios"] or 0)))
     return {"hashtag": etiqueta, "publicaciones": pubs}
 
@@ -675,7 +678,9 @@ def _error_google_api(r: requests.Response) -> str:
 
 
 def youtube_tendencia(api_key: str, consulta: str, dias: int = 7, pais: str = "MX",
-                      idioma: str = "es", maximo: int = 25, mercado: "Mercado | None" = None) -> list[dict]:
+                      idioma: str = "es", maximo: int = 25, mercado: "Mercado | None" = None,
+                      duracion: str = "") -> list[dict]:
+    """duracion="short" busca solo videos cortos (Shorts, de menos de 4 minutos)."""
     """Videos más vistos sobre un tema publicados en los últimos N días, con velocidad de vistas."""
     if not api_key:
         raise ErrorFuente("Falta la clave de YouTube Data API. Agrégala en la pestaña Configuración.")
@@ -688,6 +693,8 @@ def youtube_tendencia(api_key: str, consulta: str, dias: int = 7, pais: str = "M
               "relevanceLanguage": idioma.split("-")[0], "key": api_key}
     if pais:
         params["regionCode"] = _gl(pais)
+    if duracion:
+        params["videoDuration"] = duracion
     try:
         r = requests.get(f"{base}/search", params=params, timeout=30)
         if r.status_code != 200:

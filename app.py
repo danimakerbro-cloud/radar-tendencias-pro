@@ -70,6 +70,11 @@ def _autoprueba(ruta_salida: str) -> int:
                           "sugerencias": [x["texto"] for x in v.get("sugerencias", [])][:4]}
                       for k, v in ((rep.get("redes") or {}).get("redes") or {}).items()},
             "coinciden": [(c["busqueda"], c["fuentes"]) for c in (rep.get("redes") or {}).get("coinciden", [])][:5],
+            "ideas": {"temas": [(t["tema"], t["veces"], t["fuentes"]) for t in (rep.get("ideas") or {}).get("temas", [])][:10],
+                      "hashtags": [h["hashtag"] for h in (rep.get("ideas") or {}).get("hashtags", [])][:10],
+                      "busquedas": len((rep.get("ideas") or {}).get("busquedas", [])),
+                      "imagenes": [x["busqueda"] for x in (rep.get("ideas") or {}).get("imagenes", [])][:5],
+                      "errores": (rep.get("ideas") or {}).get("errores")},
         }
         resultado["pasos"]["analizar"]["despegan"] = {k: v[:3] for k, v in resultado["pasos"]["analizar"]["despegan"].items()}
         vivo = esperar(post("en_vivo")["trabajo"])
