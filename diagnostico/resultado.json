@@ -1,0 +1,636 @@
+{
+ "fecha": "2026-11-20T17:42:35.671316",
+ "pruebas": {
+  "autocompletar_bodas": {
+   "ok": true,
+   "seg": 0.7,
+   "resultado": [
+    [
+     "bodas de plata",
+     1
+    ],
+    [
+     "bodas de oro",
+     1
+    ],
+    [
+     "bodas de 40 años como se llaman",
+     1
+    ],
+    [
+     "bodas de odio",
+     1
+    ],
+    [
+     "bodas de 15 años como se llaman",
+     1
+    ],
+    [
+     "bodas de 20 años como se llaman",
+     1
+    ],
+    [
+     "bodas de 60 años como se llaman",
+     1
+    ],
+    [
+     "bodas por año",
+     1
+    ],
+    [
+     "bodas de bronce",
+     1
+    ],
+    [
+     "bodas precios",
+     1
+    ],
+    [
+     "bodas precio cerrado",
+     1
+    ],
+    [
+     "precio bodas registro civil",
+     1
+    ],
+    [
+     "precios bodas net",
+     1
+    ],
+    [
+     "precio bodas españa",
+     1
+    ],
+    [
+     "precios bodas civil",
+     1
+    ],
+    [
+     "precio bodas net premium",
+     1
+    ],
+    [
+     "precio bodas 2025",
+     1
+    ],
+    [
+     "precio bodas de sangre",
+     1
+    ],
+    [
+     "precio bodas madrid",
+     1
+    ],
+    [
+     "bodas cerca de mi",
+     1
+    ],
+    [
+     "bodas civiles cerca de mi",
+     1
+    ],
+    [
+     "restaurante bodas cerca de mi",
+     1
+    ],
+    [
+     "fincas bodas cerca de mi",
+     1
+    ],
+    [
+     "bodas comunitarias cerca de mi",
+     1
+    ],
+    [
+     "salon bodas cerca de mi",
+     1
+    ],
+    [
+     "catering bodas cerca de mi",
+     1
+    ],
+    [
+     "haciendas bodas cerca de mi",
+     1
+    ],
+    [
+     "celebrar bodas cerca de mi",
+     1
+    ],
+    [
+     "masia bodas cerca de mi",
+     1
+    ]
+   ]
+  },
+  "autocompletar_xv": {
+   "ok": true,
+   "seg": 0.5,
+   "resultado": [
+    [
+     "xv años",
+     2
+    ],
+    [
+     "xvi",
+     1
+    ],
+    [
+     "xview",
+     1
+    ],
+    [
+     "xview plus",
+     1
+    ],
+    [
+     "xvii",
+     1
+    ],
+    [
+     "xviii",
+     1
+    ],
+    [
+     "xviii que numero es",
+     1
+    ],
+    [
+     "xviii que siglo es",
+     1
+    ],
+    [
+     "xvi que numero es",
+     1
+    ],
+    [
+     "xv años hombre",
+     1
+    ],
+    [
+     "xv años de rubi",
+     1
+    ],
+    [
+     "xv años vestidos",
+     1
+    ],
+    [
+     "xv años vector",
+     1
+    ],
+    [
+     "xv años vaqueros",
+     1
+    ],
+    [
+     "xv años de las hijas del chapo",
+     1
+    ],
+    [
+     "xv años frases",
+     1
+    ],
+    [
+     "xv años invitaciones",
+     1
+    ],
+    [
+     "xv años de mafer",
+     1
+    ]
+   ]
+  },
+  "sugerir_bodas": {
+   "ok": true,
+   "seg": 1.6,
+   "resultado": [
+    "bodas de plata",
+    "bodas de oro",
+    "bodas de odio",
+    "bodas de bronce",
+    "bodas de plata cuantos años son",
+    "bodas de sangre",
+    "bodas de diamante",
+    "bodas de oro cuantos años son",
+    "bodas por año",
+    "bodas precios",
+    "bodas precio cerrado",
+    "precio bodas registro civil",
+    "precios bodas net",
+    "precio bodas españa",
+    "precios bodas civil"
+   ]
+  },
+  "sugerir_xv_anos": {
+   "ok": true,
+   "seg": 1.6,
+   "resultado": [
+    "xv años de rubi",
+    "xv años de las hijas del chapo",
+    "xv años de mafer",
+    "xv años hombre",
+    "xv años vestidos",
+    "xv años vector",
+    "xv años vaqueros",
+    "xv años frases",
+    "xv años invitaciones",
+    "xv años precio de pastel para 200 personas en la esperanza",
+    "xv años precio",
+    "corona xv años precio",
+    "vestidos xv años precio",
+    "copas xv años precio",
+    "brindis xv años precio"
+   ]
+  },
+  "tendencias_hoy": {
+   "ok": true,
+   "seg": 0.3,
+   "resultado": [
+    {
+     "tema": "al-ahli saudi - al-nassr",
+     "busquedas": "10000+",
+     "busquedas_num": 10000,
+     "fecha": "2026-11-20 16:50:00",
+     "noticia": "Al-Ahli Jeddah vs Al-Nassr - Prediction, where to watch, kick-off time and line-ups 15-10-2026",
+     "medio": "OneFootball",
+     "url": "https://onefootball.com/en/betting/predictions/al-ahli-jeddah-vs-al-nassr-15-10-2026"
+    },
+    {
+     "tema": "salario mínimo",
+     "busquedas": "1000+",
+     "busquedas_num": 1000,
+     "fecha": "2026-11-20 16:40:00",
+     "noticia": "Banxico se divide en minutas de política monetaria: Impacta la depreciación sobre inflación",
+     "medio": "El Financiero",
+     "url": "https://www.elfinanciero.com.mx/economia/2026/11/20/banxico-se-divide-por-minutas-de-politica-monetaria-impacta-la-depreciacion-sobre-inflacion/"
+    },
+    {
+     "tema": "alexander haskin actor",
+     "busquedas": "1000+",
+     "busquedas_num": 1000,
+     "fecha": "2026-11-20 15:20:00",
+     "noticia": "Murió Alexander Haskin, actor de ‘You’; Policía abrió una investigación",
+     "medio": "López-Dóriga Digital",
+     "url": "https://lopezdoriga.com/entretenimiento/murio-alexander-haskin-actor-de-you-policia-abrio-una-investigacion/"
+    },
+    {
+     "tema": "independiente del valle - macará",
+     "busquedas": "200+",
+     "busquedas_num": 200,
+     "fecha": "2026-11-20 17:30:00",
+     "noticia": "Cuándo juega Independiente del Valle vs. Macará por Liga Ecuabet: equipo, fecha, hora y TV en vivo",
+     "medio": "ESPN México",
+     "url": "https://www.espn.com.mx/futbol/ecuador/nota/_/id/17531020/independiente-del-valle-vs-macara-por-liga-ecuabet-equipo-fecha-hora-y-tv-en-vivo"
+    },
+    {
+     "tema": "one ui 9.5",
+     "busquedas": "200+",
+     "busquedas_num": 200,
+     "fecha": "2026-11-20 16:30:00",
+     "noticia": "Samsung Begins One UI 9.5 Beta Program",
+     "medio": "samsung.com",
+     "url": "https://news.samsung.com/global/samsung-begins-one-ui-9-5-beta-program"
+    },
+    {
+     "tema": "troyes vs",
+     "busquedas": "200+",
+     "busquedas_num": 200,
+     "fecha": "2026-11-20 16:30:00",
+     "noticia": "Malgré la maladie, Jean-Marc Furlan sera présent à Troyes ce vendredi",
+     "medio": "SO FOOT.com",
+     "url": "https://www.sofoot.com/breves/malgre-la-maladie-jean-marc-furlan-sera-present-ce-vendredi-au-stade-de-laube-de-troyes"
+    },
+    {
+     "tema": "bernardo cueva",
+     "busquedas": "100+",
+     "busquedas_num": 100,
+     "fecha": "2026-11-20 17:30:00",
+     "noticia": "Oficial: Crystal Palace suma al mexicano Bernardo Cueva al staff de Thomas Frank",
+     "medio": "ESPN México",
+     "url": "https://www.espn.com.mx/futbol/inglaterra/nota/_/id/17537179/crystal-palace-bernardo-cueva-oficial-staff-thomas-frank"
+    },
+    {
+     "tema": "puebla vs san luis",
+     "busquedas": "100+",
+     "busquedas_num": 100,
+     "fecha": "2026-11-20 16:50:00",
+     "noticia": "Puebla y Atlético buscarán cerrar con victoria el Apertura 2026",
+     "medio": "Yahoo",
+     "url": "https://es-us.noticias.yahoo.com/puebla-atl%C3%A9tico-buscar%C3%A1n-cerrar-victoria-091122588.html"
+    }
+   ]
+  },
+  "noticias_bodas": {
+   "ok": true,
+   "seg": 0.6,
+   "resultado": [
+    {
+     "fecha": "2026-11-20 14:01:00",
+     "titulo": "Las cascadas de flores sustituirán a los clásicos centros de mesa en las bodas de 2027: \"Un bodegón vivo que invita a tocar, oler y quedarse\" - HOLA",
+     "medio": "HOLA",
+     "url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxNRFFXNjA1cjVyWXU3UHB1bWlMbENSa21QZC1tV0FLNjFienJEd3UyWlhSd1JxcDFmV3lpTm52V09rNkRfUURDTE5NRXlhRndvbFBLRmpibHV5RjctbmF6TUgzSF9sck11LW9TSkdXR1kwY3VGaWlnbTRfZUFzQ3Q2TWVVc2lleWp5ZDNyVkVJR1lkNXcxSnc?oc=5"
+    },
+    {
+     "fecha": "2026-11-19 20:01:37",
+     "titulo": "Paleta de colores para bodas 2027: el contraste entre neutros y tonos vivos - Bodas.net",
+     "medio": "Bodas.net",
+     "url": "https://news.google.com/rss/articles/CBMifEFVX3lxTE44NV9OOTAxWVEyanVTcDVGM1JPcTB1RVlJeXNmaHlPLUtBU1hycmhIQlBQQ3RhWGxfN29MR1hBVGtmUG1MaVIwYzdnUkFCMkVzM0xxbG9PeXBnbWVLSlhUUm9YcGpuRlF5c01nSkxyQV9yZFZscG9iWi1HaVk?oc=5"
+    },
+    {
+     "fecha": "2026-11-19 20:01:35",
+     "titulo": "Estética Y2K: la boda retro que quieres en 2027 - Bodas.net",
+     "medio": "Bodas.net",
+     "url": "https://news.google.com/rss/articles/CBMijgFBVV95cUxOVm9IRVRpZ3ducjFxa1dEWkxzUFU4dkVTNkR6ellxOF9FYWZSczdvaF9DcEZEOWp1a2tFTG1wV0xRdmh4NjJsVEZaQUVaNGxJSDVzQ2w0QkExQ2JwYWhNOFVJR0M5bU5nWlRvYWtYYUl1MnYwc0Jtb3pxejFaQ1EwbkNFLVlHWldUUldSVndB?oc=5"
+    },
+    {
+     "fecha": "2026-11-19 18:46:28",
+     "titulo": "Michael Douglas y Catherine Zeta-Jones celebran 26 años de matrimonio con románticos mensajes - Revista Caras México",
+     "medio": "Revista Caras México",
+     "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxNMkw0aGJSblZMQloydjNpU3hnTTZ5RmwxQm1rNWdhSDZrUlFya0lQV0lLQVcyNE9QeUp0RWhPS2NfaHZqTWZpeHFGYVp4U0V5U1JSLWpFNk03clRvczREQ1lHeWdBMk1UVFVtZnBJZnVFWFZlekpnNkt4SFZQOXl4Sks2Tlo3azUwbXJweU1JdUxQb01zbWV5Qk5PWlFkUWPSAawBQVVfeXFMT3pTSE4zZVR6R1lzaTVyZ0hlQXR0MjBLQzhXTXF1cm5hNTJJSFRKblIySk5sYngwdXdsNHpLbFJnNmFyd05xZ3lhRnBuVEZLWlhrelhnamJ5ZzRfMW1mU1RkUUliYVlLdUI0TXhiY1dVX0pyS1dyclpob1hZSkl4VU10UFRsQ3RCeFF3VnNtQVVFNEhkd2lWZ0VDN2NhLV9NdzNMYWthN1REdk9sTw?oc=5"
+    },
+    {
+     "fecha": "2026-11-19 18:22:00",
+     "titulo": "Consejos de expertos para elegir el postre que ponga la guinda final al menú de tu boda: \"En invierno el chocolate es el rey en todas sus versiones\" - HOLA",
+     "medio": "HOLA",
+     "url": "https://news.google.com/rss/articles/CBMijgFBVV95cUxOUlpfSlcyV21HOFZRcnNiV19vQzhHZm5halNEZTVtOGFYdVpJcmh6aHEyOUktZFF4dEdteE9tWXVrb1l0TFV3MnhQZWNzYzNYOUNNY2JZVFJYWHE3aURyRDllMlBpNm9aekFyX2hzeWhCS3ItR2kwY2o0Ykc4NENLZmtGTFdtOGZJbTNrUUtR?oc=5"
+    }
+   ]
+  },
+  "trends_interes_1": {
+   "ok": true,
+   "seg": 1.0,
+   "resultado": {
+    "bodas": [
+     65,
+     67,
+     57,
+     70,
+     76,
+     77,
+     66,
+     64,
+     66,
+     61
+    ]
+   }
+  },
+  "trends_interes_5": {
+   "ok": true,
+   "seg": 0.5,
+   "resultado": {
+    "bodas": [
+     77,
+     66,
+     64,
+     66,
+     62
+    ],
+    "xv años": [
+     48,
+     39,
+     33,
+     34,
+     29
+    ],
+    "boda civil": [
+     15,
+     17,
+     15,
+     14,
+     13
+    ],
+    "salón de fiestas": [
+     11,
+     9,
+     9,
+     10,
+     10
+    ],
+    "bautizo": [
+     83,
+     76,
+     77,
+     69,
+     62
+    ]
+   }
+  },
+  "trends_relacionadas": {
+   "ok": true,
+   "seg": 1.3,
+   "resultado": {
+    "top": [
+     [
+      "bodas de",
+      "100"
+     ],
+     [
+      "aniversario de bodas",
+      "15"
+     ],
+     [
+      "años de bodas",
+      "14"
+     ],
+     [
+      "noche de bodas",
+      "6"
+     ],
+     [
+      "bodas de oro",
+      "5"
+     ],
+     [
+      "bodas de plata",
+      "4"
+     ],
+     [
+      "pastel de bodas",
+      "3"
+     ],
+     [
+      "27 bodas",
+      "3"
+     ],
+     [
+      "regalo de bodas",
+      "3"
+     ],
+     [
+      "anillo de bodas",
+      "3"
+     ],
+     [
+      "vestidos para bodas",
+      "2"
+     ],
+     [
+      "bodas de cana",
+      "2"
+     ],
+     [
+      "feliz aniversario de bodas",
+      "2"
+     ],
+     [
+      "fotos de bodas",
+      "2"
+     ],
+     [
+      "regalo para bodas",
+      "2"
+     ],
+     [
+      "las bodas del cordero",
+      "1"
+     ],
+     [
+      "anillos de bodas",
+      "1"
+     ],
+     [
+      "pastel para bodas",
+      "1"
+     ],
+     [
+      "las bodas de cana",
+      "1"
+     ],
+     [
+      "bodas de odio",
+      "1"
+     ],
+     [
+      "bodas por años",
+      "1"
+     ],
+     [
+      "bodas de 10 años",
+      "1"
+     ],
+     [
+      "bodas comunitarias",
+      "1"
+     ],
+     [
+      "bodas de sangre",
+      "1"
+     ],
+     [
+      "regalos para bodas",
+      "1"
+     ]
+    ],
+    "subiendo": [
+     [
+      "20 años de casados que bodas son",
+      "Aumento"
+     ],
+     [
+      "recuerdos para bodas sencillos y económicos",
+      "Aumento"
+     ],
+     [
+      "vestidos para bodas sencillos y elegantes",
+      "+700%"
+     ],
+     [
+      "aniversarios de bodas por años y su significado",
+      "+400%"
+     ],
+     [
+      "donde ver 27 bodas",
+      "+350%"
+     ],
+     [
+      "cuatro bodas y un funeral",
+      "+110%"
+     ],
+     [
+      "lazo de bodas",
+      "+90%"
+     ],
+     [
+      "25 años de casados que bodas son",
+      "+80%"
+     ],
+     [
+      "bodas de platino",
+      "+80%"
+     ],
+     [
+      "bodas de 40 años como se llaman",
+      "+80%"
+     ],
+     [
+      "fondos para bodas",
+      "+80%"
+     ],
+     [
+      "bodas de rubi",
+      "+70%"
+     ],
+     [
+      "50 años de casados que bodas son",
+      "+70%"
+     ],
+     [
+      "regalo para bodas",
+      "+70%"
+     ],
+     [
+      "expo bodas",
+      "+70%"
+     ],
+     [
+      "primer aniversario de bodas",
+      "+60%"
+     ],
+     [
+      "40 años de casados que bodas son",
+      "+50%"
+     ],
+     [
+      "bodas de 10 años como se llaman",
+      "+50%"
+     ],
+     [
+      "significado de aniversario de bodas",
+      "+50%"
+     ],
+     [
+      "regalo de bodas",
+      "+50%"
+     ],
+     [
+      "asado de bodas",
+      "+40%"
+     ],
+     [
+      "pastel de aniversario de bodas",
+      "+40%"
+     ]
+    ]
+   }
+  },
+  "trends_7d": {
+   "ok": true,
+   "seg": 0.4,
+   "resultado": {
+    "xv años": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     38,
+     40,
+     45,
+     43,
+     55
+    ]
+   }
+  }
+ }
+}
