@@ -11,6 +11,7 @@ Toma las fuentes de motor.py y las convierte en un reporte claro:
 from __future__ import annotations
 
 import datetime as dt
+import re
 import statistics
 import time
 
@@ -67,15 +68,25 @@ _INFO_FRASES = [
     "aniversario de bodas por", "que se regala", "numero romano", "romano",
 ]
 _INFO_PALABRAS = {"net", "sa", "wiki", "pdf", "rae", "lyrics", "trailer", "netflix", "disney", "imdb", "subaru",
-                  "xview", "xvi", "xvii", "xviii", "xix", "xx"}
+                  "xview", "xvi", "xvii", "xviii", "xix", "xx", "letras", "roblox", "minecraft", "fortnite", "sims",
+                  "juego", "juegos", "anime", "novela", "telenovela", "capitulos", "temporada2", "actor", "actriz",
+                  "cantante", "famosos", "famosa", "famoso", "testigos"}
+
+# «boda de julia roberts», «xv años de rubí», «la boda de rachel»: eventos de famosos o ficción
+_PERSONA = re.compile(r"^(la |las )?(boda|bodas|xv anos) (de|del) "
+                      r"(?!(noche|dia|playa|jardin|campo|plata|oro|bronce|diamante|rubi|ensueno|lujo|princesa|"
+                      r"blanco|negro|tarde|invierno|verano|primavera|otono|civil|religiosa|destino|mis|tus|"
+                      r"nuestros|cuento|hadas)\b)[a-z]+( [a-z]+)?$")
 
 # Lugares que no son México (para un usuario en MX)
 _FUERA = {
-    "MX": {"espana", "madrid", "barcelona", "valencia", "sevilla", "malaga", "bilbao", "argentina", "buenos",
-           "chile", "santiago", "colombia", "bogota", "medellin", "peru", "lima", "uruguay", "montevideo",
-           "venezuela", "caracas", "ecuador", "quito", "guayaquil", "bolivia", "paraguay", "finca", "fincas",
-           "masia", "masias", "cortijo", "euros", "usa", "miami", "texas", "california", "rd", "dominicana",
-           "guatemala", "honduras", "salvador", "nicaragua", "costa", "panama", "cuba", "puerto"},
+    "MX": {"espana", "madrid", "barcelona", "valencia", "sevilla", "malaga", "bilbao", "zaragoza", "alicante",
+           "murcia", "argentina", "chile", "colombia", "bogota", "medellin", "barranquilla", "cartagena", "peru",
+           "arequipa", "cusco", "uruguay", "montevideo", "venezuela", "caracas", "ecuador", "quito", "guayaquil",
+           "bolivia", "cochabamba", "paraguay", "asuncion", "guatemala", "honduras", "tegucigalpa", "nicaragua",
+           "managua", "panama", "cuba", "habana", "dominicana", "finca", "fincas", "masia", "masias", "cortijo",
+           "euros", "usa", "miami", "texas", "california", "rosario", "avellaneda", "berazategui", "neuquen",
+           "mendoza", "quilmes", "lanus", "moron", "tucuman", "caba", "conurbano", "gba", "valparaiso", "comuna"},
 }
 
 
@@ -85,7 +96,7 @@ def clasificar(texto: str, pais: str = "MX") -> str:
     palabras = set(n.split())
     if palabras & _FUERA.get((pais or "MX").upper(), set()):
         return "fuera"
-    if palabras & _INFO_PALABRAS or any(f" {f} " in n for f in _INFO_FRASES):
+    if palabras & _INFO_PALABRAS or any(f" {f} " in n for f in _INFO_FRASES) or _PERSONA.match(n.strip()):
         return "info"
     if palabras & _VENTA or any(f" {f} " in n for f in _VENTA_FRASES):
         return "venta"
