@@ -1,0 +1,28 @@
+# Prueba las fuentes de datos con internet real. Se activa al subir la rama "diagnostico".
+name: Diagnostico de datos
+on:
+  push:
+    branches: [diagnostico]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install requests numpy openpyxl
+      - run: python herramientas/diagnostico.py
+        env:
+          PYTHONIOENCODING: utf-8
+      - name: Guardar resultado en la rama
+        shell: bash
+        run: |
+          git config user.name "diagnostico"
+          git config user.email "diagnostico@users.noreply.github.com"
+          git add -f diagnostico/resultado.json
+          git commit -m "Resultado del diagnostico"
+          git push
