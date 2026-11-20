@@ -20,15 +20,11 @@ Desarrollado por Daniel Belmont, CEO de Obsidiana Technology.
 ## Cómo publicar una versión nueva
 
 1. Haz los cambios en el código y súbelos a `main`.
-2. Crea una etiqueta con el número de versión y súbela:
-   ```
-   git tag v1.1.0
-   git push origin v1.1.0
-   ```
-3. GitHub Actions (`.github/workflows/instalador.yml`) compila el programa en Windows, crea el instalador `RadarTendenciasPro-Setup.exe` con Inno Setup y la versión portátil `.zip`, y los publica en **Releases**.
+2. En GitHub entra a **Releases → Draft a new release**, escribe una etiqueta nueva (por ejemplo `v1.1.0`), un título y da **Publish release**.
+3. GitHub Actions (`.github/workflows/instalador.yml`) compila el programa en Windows, crea el instalador `RadarTendenciasPro-Setup.exe` con Inno Setup y la versión portátil `.zip`, y los agrega a esa versión (tarda unos 10 minutos).
 4. La página de descarga y el aviso de actualización dentro del programa toman la versión nueva automáticamente.
 
-También puedes lanzarlo a mano: pestaña **Actions** → **Crear instalador** → **Run workflow** (crea los archivos sin publicar la versión).
+También puedes correrlo a mano: pestaña **Actions** → **Crear instalador** → **Run workflow** (crea los archivos sin publicar la versión).
 
 ## Página web
 

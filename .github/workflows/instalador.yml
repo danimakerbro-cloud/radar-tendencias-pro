@@ -1,10 +1,11 @@
-# Crea el instalador de Windows y lo publica como nueva versión.
-# Se activa al subir una etiqueta de versión (ej. v1.0.0) o a mano desde la pestaña Actions.
+# Crea el instalador de Windows y lo sube a la versión (Release) que publiques en GitHub.
+# Para sacar una versión: pestaña Releases → "Draft a new release" → etiqueta nueva (ej. v1.1.0) → Publish.
+# También se puede correr a mano desde la pestaña Actions (crea los archivos sin publicarlos).
 name: Crear instalador
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

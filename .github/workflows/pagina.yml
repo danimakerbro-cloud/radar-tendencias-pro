@@ -1,5 +1,5 @@
 # Publica la página de descarga (carpeta docs/) en GitHub Pages.
-# Requisito único: en Settings → Pages, en "Source" elige "GitHub Actions".
+# Requisito único (ya está hecho): Settings → Pages → Source: "GitHub Actions".
 name: Publicar página web
 
 on:
