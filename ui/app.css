@@ -268,3 +268,13 @@ tr.pico td { background: var(--ambar-claro); }
 .chips-texto { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips-texto span { background: var(--fondo); border-radius: 999px; padding: 4px 11px; font-size: 13px; }
 @media (max-width: 1100px) { .redes-grid { grid-template-columns: 1fr; } }
+
+/* ---------- en vivo ---------- */
+.vivo-punto { width: 10px; height: 10px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 0 0 rgba(239,68,68,.6); animation: latir 1.8s infinite; }
+@keyframes latir { 70% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+.en-vivo-tit { display: inline-flex; align-items: center; gap: 10px; }
+.en-vivo-tit .vivo-punto { width: 12px; height: 12px; }
+.vivo-fila { display: grid; grid-template-columns: minmax(140px,1fr) 240px 150px 90px; gap: 14px; align-items: center; padding: 10px 2px; border-top: 1px solid var(--linea); }
+.vivo-fila:first-of-type { border-top: 0; }
+.videos { display: grid; grid-template-columns: 1fr; }
+@media (prefers-reduced-motion: reduce) { .vivo-punto { animation: none; } }

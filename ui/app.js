@@ -87,7 +87,7 @@ async function cargarEstado() {
 $("#selMercado").addEventListener("change", async (e) => {
   if (!e.target.value) return ir("mercado");
   await api("mercado/activar", { nombre: e.target.value });
-  E.analisis = null; E.comparar = null; E.redes = null;
+  E.analisis = null; E.comparar = null; E.redes = null; E.vivo = null;
   await cargarEstado();
   render();
 });
@@ -103,7 +103,7 @@ function ir(vista) {
 
 function render() {
   const c = $("#contenido");
-  const vistas = { inicio: vistaInicio, mercado: vistaMercado, redsociales: vistaRedesSociales, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
+  const vistas = { inicio: vistaInicio, envivo: vistaEnVivo, mercado: vistaMercado, redsociales: vistaRedesSociales, comparar: vistaComparar, redes: vistaRedes, ventas: vistaVentas, alertas: vistaAlertas, ajustes: vistaAjustes };
   (vistas[E.vista] || vistaInicio)(c);
 }
 
@@ -494,6 +494,83 @@ const PIN_CATS = [["", "Todas"], ["event_planning", "Planeación de eventos"], [
   ["home_decor", "Decoración del hogar"], ["womens_fashion", "Moda mujer"], ["mens_fashion", "Moda hombre"], ["beauty", "Belleza"],
   ["design", "Diseño"], ["sport", "Deporte"], ["travel", "Viajes"], ["diy_and_crafts", "Manualidades"], ["entertainment", "Entretenimiento"]];
 
+// ------------------------------------------------------------ EN VIVO
+const VIVO = { trabajo: null, error: null, auto: (() => { try { return localStorage.getItem("vivoAuto") !== "0"; } catch { return true; } })(), reloj: null };
+const PASOS_VIVO = [{ hasta: 50, txt: "Google, hora por hora" }, { hasta: 60, txt: "Lo más buscado hoy" }, { hasta: 78, txt: "Videos que se vuelven virales" }, { hasta: 88, txt: "Instagram reciente" }, { hasta: 100, txt: "Noticias de las últimas 24 horas" }];
+const horaCorta = (iso) => new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+const haceCuanto = (iso) => { const min = Math.round((Date.now() - new Date(iso)) / 60000); return min < 1 ? "hace un momento" : min < 60 ? `hace ${min} min` : fechaBonita(iso); };
+
+async function actualizarVivo(silencioso = false) {
+  if (VIVO.trabajo || !E.estado.activo) return;
+  try {
+    const { trabajo } = await api("en_vivo");
+    VIVO.trabajo = { pct: 1, paso: "Empezando…" }; VIVO.error = null;
+    if (E.vista === "envivo") render();
+    E.vivo = await esperar(trabajo, (t) => { VIVO.trabajo = t; if (!silencioso) barra(t.pct); if (E.vista === "envivo" && $("#contenido .progreso")) $("#contenido .progreso").outerHTML = progresoHTML("Buscando lo más viral ahora", t, PASOS_VIVO); });
+    if (E.vivo.picos && E.vivo.picos.length) aviso(`Se está disparando ahora: ${E.vivo.picos.join(", ")}`, "pico", "🔥 En vivo");
+  } catch (err) { VIVO.error = errorAmable(err.message); if (!silencioso) aviso(VIVO.error, "error", "No se pudo actualizar En vivo"); }
+  finally { VIVO.trabajo = null; barra(null); if (E.vista === "envivo") render(); }
+}
+
+function programarVivo() {
+  clearInterval(VIVO.reloj);
+  if (VIVO.auto) VIVO.reloj = setInterval(() => actualizarVivo(true), 15 * 60 * 1000);
+}
+
+async function vistaEnVivo(c) {
+  if (!E.estado.activo) { c.innerHTML = `<div class="tarjeta vacio"><h1>Primero crea tu mercado</h1><p>Así te muestro lo más viral de tu giro en este momento.</p><button class="btn primario grande" id="bCr">Crear mi mercado</button></div>`; $("#bCr").onclick = () => ir("mercado"); return; }
+  if (VIVO.trabajo && !E.vivo) { c.innerHTML = progresoHTML("Buscando lo más viral ahora", VIVO.trabajo, PASOS_VIVO); return; }
+  if (!E.vivo || E.vivo.mercado !== E.estado.activo) {
+    E.vivo = (await api("en_vivo/ultimo")).vivo;
+    if (!E.vivo && VIVO.error) {
+      c.innerHTML = `<div class="tarjeta vacio"><h1>No se pudo traer lo más viral</h1><p>${esc(VIVO.error)}</p><button class="btn primario grande" id="bRe">Intentar otra vez</button></div>`;
+      $("#bRe").onclick = () => actualizarVivo(); return;
+    }
+    if (!E.vivo) { c.innerHTML = progresoHTML("Buscando lo más viral ahora", VIVO.trabajo, PASOS_VIVO); if (!VIVO.trabajo) actualizarVivo(); return; }
+  }
+  const v = E.vivo, er = v.errores || {};
+  const errorDe = (k) => (er[k] ? `<div class="error-sec">${esc(errorAmable(er[k]))}</div>` : "");
+  const listaTemas = (lista, vacio) => (lista && lista.length ? `<ul class="lista">${lista.map((t) => `<li><div class="txt"><b>${esc(t.tema)}</b><small>${fuente(t.fuente)} ${esc(t.noticia || "")}</small></div><span class="chip">${esc(t.busquedas)} búsquedas</span>${t.url ? `<a href="#" class="btn fantasma" data-url="${esc(t.url)}">Abrir</a>` : ""}</li>`).join("")}</ul>` : `<p class="nota">${vacio}</p>`);
+  const listaVideos = (lista, vacio) => (lista && lista.length ? `<ul class="lista">${lista.map((x, i) => `<li><div class="txt"><a href="#" data-url="${esc(x.url)}">${esc(x.titulo)}</a><small>${fuente("YouTube")} ${esc(x.canal)} · ${fnum(x.vistas)} vistas · publicado ${esc(fechaBonita(x.publicado))}</small></div><span class="chip ${i < 3 ? "explotando" : "sube"}">${i < 3 ? "🔥 " : ""}${fnum(x.vistas_hora)} vistas/hora</span></li>`).join("")}</ul>` : `<p class="nota">${vacio}</p>`);
+  c.innerHTML = `<div class="encabezado"><div><h1 class="en-vivo-tit"><span class="vivo-punto"></span>Lo más viral ahora</h1>
+      <p class="sub" style="margin:0">«${esc(v.mercado)}» · actualizado ${esc(haceCuanto(v.fecha))}${VIVO.trabajo ? ` · actualizando… ${VIVO.trabajo.pct}%` : ""}</p></div>
+      <div class="fila" style="align-items:center"><label class="switch"><input type="checkbox" id="vAuto" ${VIVO.auto ? "checked" : ""}>Actualizar solo cada 15 min</label>
+      <button class="btn primario" id="vYa" ${VIVO.trabajo ? "disabled" : ""}>Actualizar ahora</button></div></div>
+    ${v.picos && v.picos.length ? `<div class="sugerencia"><span>🔥 <b>Se está disparando ahora en Google:</b> ${v.picos.map(esc).join(", ")}</span></div>` : ""}
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Tu mercado en las últimas 24 horas ${fuente("Google")}</h2><p>Búsquedas hora por hora. Si las últimas horas están muy arriba de lo normal del día, se marca 🔥.</p></div></div>
+      ${v.google_horas.map((h) => `<div class="vivo-fila"><b>${esc(h.palabra)}</b>${h.error ? `<span class="chico">${esc(errorAmable(h.error))}</span><span></span><span></span>` : `${sparkline(h.serie, h.pico ? "#D97706" : "#2563EB", 240, 36)}<span>${h.pico ? '<span class="chip explotando">🔥 Disparándose</span>' : (h.cambio > 15 ? '<span class="chip sube">↗ Subiendo</span>' : h.cambio < -15 ? '<span class="chip baja">↘ Más bajo</span>' : '<span class="chip estable">→ Normal</span>')}</span><span class="cambio ${h.cambio > 0 ? "pos" : h.cambio < 0 ? "neg" : ""}" style="text-align:right" title="Últimas 3 horas contra el resto del día">${fpct(h.cambio)}</span>`}</div>`).join("")}
+    </section>
+    <div class="dos-col">
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Lo más buscado hoy ${fuente("Google Tendencias")}</h2><p>Los temas que explotaron en Google hoy en México.</p></div>
+        <div class="segmentado" id="segHoy"><button class="activo" data-h="m">De tu mercado (${(v.hoy_mercado || []).length})</button><button data-h="g">Todo México</button></div></div>
+        ${errorDe("hoy")}<div id="lHoyV"></div></section>
+      <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Noticias de las últimas 24 horas ${fuente("Google Noticias")}</h2><p>Lo que se está publicando ahora sobre tu mercado.</p></div></div>
+        ${errorDe("noticias")}${(v.noticias || []).length ? `<ul class="lista">${v.noticias.map((n) => `<li><div class="txt"><a href="#" data-url="${esc(n.url)}">${esc(n.titulo)}</a><small>${fuente("Google Noticias")} ${esc(n.medio)} · ${esc(horaCorta(n.fecha))}</small></div></li>`).join("")}</ul>` : `<p class="nota">No hubo noticias de tu mercado en las últimas 24 horas.</p>`}</section>
+    </div>
+    <section class="tarjeta"><div class="tarjeta-cab"><div><h2>Videos que se están volviendo virales ${fuente("YouTube")}</h2><p>Ordenados por vistas por hora desde que se publicaron.</p></div>
+      ${v.videos_mercado == null ? "" : `<div class="segmentado" id="segVid"><button class="activo" data-v="m">De tu mercado (últimas 48 h)</button><button data-v="g">Tendencias de YouTube México</button></div>`}</div>
+      ${v.videos_mercado == null ? `<p class="nota">Agrega tu clave gratuita de YouTube en Ajustes para ver aquí los videos que se están volviendo virales.</p><button class="btn" id="bClaveV">Ir a Ajustes</button>` : errorDe("videos_mercado") + errorDe("videos_general") + `<div id="lVidV"></div>`}</section>
+    <div class="dos-col">
+      <section class="red-card c-instagram"><h2>${fuente("Instagram")} Instagram ahora</h2><p class="que">Lo más reciente de los hashtags de tu mercado (últimas 24 horas).</p>
+        ${v.instagram == null ? `<p class="nota">Conecta tu cuenta profesional de Instagram en Ajustes para ver esto aquí.</p>` : errorDe("instagram") + (v.instagram.length ? `<ul class="lista">${v.instagram.map((p) => `<li><div class="txt"><a href="#" data-url="${esc(p.url)}">${esc(p.texto || "(sin texto)")}</a><small>${fuente("Instagram")} #${esc(p.hashtag)}</small></div><span class="chip">♥ ${fnum(p.likes)}</span></li>`).join("")}</ul>` : `<p class="nota">Sin publicaciones recientes.</p>`)}
+        ${(v.enlaces.instagram || []).map((l) => `<div class="enlaces-red"><a href="#" data-url="${esc(l.url)}">${esc(l.texto)}</a></div>`).join("")}</section>
+      <section class="red-card c-tiktok"><h2>${fuente("TikTok")} ${fuente("Facebook")} ${fuente("X")} Ver en vivo</h2><p class="que">Estas redes no comparten sus datos de tendencias con programas externos. Ábrelas aquí, ya con la búsqueda de tu mercado:</p>
+        <div class="enlaces-red">${[...(v.enlaces.tiktok || []), ...(v.enlaces.facebook || []), ...(v.enlaces.x || [])].map((l) => `<a href="#" data-url="${esc(l.url)}">${esc(l.texto)}</a>`).join("")}</div></section>
+    </div>`;
+  let hoyModo = "m", vidModo = "m";
+  const pintarHoy = () => ($("#lHoyV").innerHTML = hoyModo === "m" ? listaTemas(v.hoy_mercado, `Ahorita ninguno de los temas más buscados de México toca tu mercado. Cambia a «Todo México» para ver lo más viral en general.`) : listaTemas(v.hoy_general, "Sin datos."));
+  pintarHoy();
+  $$("#segHoy button").forEach((b) => (b.onclick = () => { hoyModo = b.dataset.h; $$("#segHoy button").forEach((x) => x.classList.toggle("activo", x === b)); pintarHoy(); }));
+  if ($("#lVidV")) {
+    const pintarVid = () => ($("#lVidV").innerHTML = vidModo === "m" ? listaVideos(v.videos_mercado, "No hubo videos nuevos de tu mercado en las últimas 48 horas.") : listaVideos(v.videos_general, "Sin datos."));
+    pintarVid();
+    $$("#segVid button").forEach((b) => (b.onclick = () => { vidModo = b.dataset.v; $$("#segVid button").forEach((x) => x.classList.toggle("activo", x === b)); pintarVid(); }));
+  }
+  if ($("#bClaveV")) $("#bClaveV").onclick = () => ir("ajustes");
+  $("#vYa").onclick = () => actualizarVivo();
+  $("#vAuto").onchange = (e) => { VIVO.auto = e.target.checked; try { localStorage.setItem("vivoAuto", VIVO.auto ? "1" : "0"); } catch { /* sin almacenamiento */ } programarVivo(); aviso(VIVO.auto ? "En vivo se actualizará solo cada 15 minutos." : "Actualización automática apagada."); };
+}
+
 // ------------------------------------------------------------ REDES SOCIALES
 const TEXTO_RED = {
   google: "Lo que la gente busca en Google: tu base para saber qué tiene demanda.",
@@ -842,6 +919,7 @@ async function vistaAjustes(c) {
     await cargarEstado();
     render();
     setInterval(revisarAvisos, 20000);
+    programarVivo();
     const { nueva } = await api("actualizacion");
     if (nueva) {
       const a = $("#avisoVersion");

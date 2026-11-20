@@ -502,7 +502,7 @@ def hashtag_de(texto: str) -> str:
     return "".join(c for c in (texto or "").lower() if c.isalnum())
 
 
-def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 12) -> dict:
+def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 12, recientes: bool = False) -> dict:
     """Publicaciones con más interacción de un hashtag, con la API oficial de Instagram.
     Necesita una cuenta profesional de Instagram ligada a una página de Facebook y un token de acceso.
     Meta permite consultar hasta 30 hashtags distintos por semana."""
@@ -519,7 +519,7 @@ def instagram_hashtag(token: str, ig_usuario: str, palabra: str, limite: int = 1
         if not datos.get("data"):
             return {"hashtag": etiqueta, "publicaciones": []}
         hid = datos["data"][0]["id"]
-        r = requests.get(f"{base}/{hid}/top_media", params={
+        r = requests.get(f"{base}/{hid}/{'recent_media' if recientes else 'top_media'}", params={
             "user_id": ig_usuario, "access_token": token, "limit": limite,
             "fields": "caption,like_count,comments_count,permalink,media_type,timestamp"}, timeout=25)
         datos = r.json()
@@ -705,6 +705,21 @@ def youtube_tendencia(api_key: str, consulta: str, dias: int = 7, pais: str = "M
     if mercado:
         videos = [v for v in videos if mercado.coincide(v["texto"])]
     return videos
+
+
+def youtube_populares(api_key: str, pais: str = "MX", maximo: int = 50) -> list[dict]:
+    """Videos en tendencia de YouTube en el país, ahora mismo (lista oficial «Más populares»)."""
+    if not api_key:
+        raise ErrorFuente("Falta la clave de YouTube Data API. Agrégala en Ajustes.")
+    try:
+        r = requests.get("https://www.googleapis.com/youtube/v3/videos",
+                         params={"part": "snippet,statistics", "chart": "mostPopular", "regionCode": _gl(pais),
+                                 "maxResults": min(maximo, 50), "key": api_key}, timeout=30)
+    except requests.RequestException as e:
+        raise ErrorFuente(f"No se pudo conectar con YouTube: {e}") from None
+    if r.status_code != 200:
+        raise ErrorFuente(f"YouTube: {_error_google_api(r)}")
+    return parsear_videos_youtube(r.json())
 
 
 def parsear_videos_youtube(datos: dict, ahora: dt.datetime | None = None) -> list[dict]:

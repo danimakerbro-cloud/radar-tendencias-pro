@@ -456,7 +456,7 @@ def investigar_redes(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
     coinciden = sorted((t for t in por_tema.values() if len(t["fuentes"]) >= 2), key=lambda t: -len(t["fuentes"]))
 
     return {"principal": principal, "redes": redes, "coinciden": coinciden[:15],
-            "enlaces": enlaces_redes(principal, pais)}
+            "enlaces": enlaces_redes(mercado.nombre, pais)}
 
 
 def _sin_repetir(items: list[dict]) -> list[dict]:
@@ -471,6 +471,102 @@ def _sin_repetir(items: list[dict]) -> list[dict]:
 
 def _tokens_simples(texto: str) -> set:
     return {t for t in m.normalizar(texto).split() if len(t) > 2 and t not in m._VACIAS}
+
+
+# ---------------------------------------------------------------------------
+# En vivo: lo más viral ahora (últimas horas)
+# ---------------------------------------------------------------------------
+def _limpiar_fechas(d: dict) -> dict:
+    return {k: (v.isoformat(timespec="minutes") if isinstance(v, dt.datetime) else v) for k, v in d.items() if k != "texto"}
+
+
+def en_vivo(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanzar=None,
+            palabras: list[str] | None = None) -> dict:
+    """Lo que se está moviendo ahora: Google por hora, lo más buscado hoy, videos virales,
+    Instagram reciente y noticias de las últimas 24 horas. Cada dato lleva su red."""
+    pais = cfg.get("pais") or "MX"
+    idioma = cfg.get("idioma", "es-419")
+    umbral = float(cfg.get("umbral_z", 2.0))
+    pal = (palabras or mercado.palabras)[:4]
+    salida = {"mercado": mercado.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"), "errores": {}}
+
+    def avanza(pct, texto):
+        if al_avanzar:
+            al_avanzar(int(pct), texto)
+
+    # 1) Google hora por hora, últimas 24 horas (cada palabra por separado)
+    horas = []
+    for i, p in enumerate(pal):
+        avanza(5 + 45 * i / max(len(pal), 1), f"Midiendo «{p}» en Google, hora por hora")
+        try:
+            fechas, series = gt.interes_en_el_tiempo([p], "now 1-d")
+            serie = series[p]
+            pk = m.detectar_pico(serie[:-1], umbral, ventana=3)
+            horas.append({"palabra": p, "horas": [f.isoformat(timespec="minutes") for f in fechas], "serie": serie,
+                          "pico": bool(pk["es_pico"]), "cambio": pk["cambio_pct"], "fuente": "Google"})
+        except m.ErrorFuente as e:
+            horas.append({"palabra": p, "error": str(e), "serie": [], "horas": [], "pico": False, "cambio": None,
+                          "fuente": "Google"})
+        time.sleep(0.8)
+    horas.sort(key=lambda h: (not h["pico"], -(h["cambio"] or -999)))
+    salida["google_horas"] = horas
+
+    # 2) Lo más buscado hoy en el país (Google Tendencias): de tu mercado y general
+    avanza(55, "Revisando lo más buscado hoy en Google")
+    try:
+        hoy = [dict(_limpiar_fechas(t), fuente="Google Tendencias") for t in m.tendencias_del_dia(pais)]
+        salida["hoy_mercado"] = [t for t in hoy if mercado.coincide(f"{t['tema']} {t['noticia']}")]
+        salida["hoy_general"] = hoy[:15]
+    except m.ErrorFuente as e:
+        salida["hoy_mercado"], salida["hoy_general"], salida["errores"]["hoy"] = [], [], str(e)
+
+    # 3) Videos que se están volviendo virales (YouTube, con clave)
+    key = cfg.get("youtube_api_key")
+    if key:
+        avanza(65, "Buscando videos que se están volviendo virales")
+        try:
+            vids = m.youtube_tendencia(key, mercado.consulta_youtube(), 2, pais, idioma.split("-")[0], 50, mercado)
+            salida["videos_mercado"] = [dict(_limpiar_fechas(v), fuente="YouTube") for v in vids[:12]]
+        except m.ErrorFuente as e:
+            salida["videos_mercado"], salida["errores"]["videos_mercado"] = [], str(e)
+        try:
+            pop = m.youtube_populares(key, pais)
+            salida["videos_general"] = [dict(_limpiar_fechas(v), fuente="YouTube") for v in pop[:15]]
+            salida["videos_general_mercado"] = [dict(_limpiar_fechas(v), fuente="YouTube") for v in pop
+                                                if mercado.coincide(v.get("texto", ""))]
+        except m.ErrorFuente as e:
+            salida["videos_general"], salida["errores"]["videos_general"] = [], str(e)
+    else:
+        salida["videos_mercado"] = salida["videos_general"] = None
+
+    # 4) Instagram: lo más reciente de los hashtags de tu mercado (API oficial)
+    if cfg.get("instagram_token") and cfg.get("instagram_usuario"):
+        avanza(78, "Revisando lo más reciente en Instagram")
+        pubs = []
+        for p in pal[:2]:
+            try:
+                r = m.instagram_hashtag(cfg["instagram_token"], cfg["instagram_usuario"], p, 15, recientes=True)
+                pubs += [dict(x, hashtag=r["hashtag"], fuente="Instagram") for x in r["publicaciones"]]
+            except m.ErrorFuente as e:
+                salida["errores"]["instagram"] = str(e)
+        salida["instagram"] = sorted({x["url"]: x for x in pubs}.values(),
+                                     key=lambda x: -((x["likes"] or 0) + 3 * (x["comentarios"] or 0)))[:12]
+    else:
+        salida["instagram"] = None
+
+    # 5) Noticias de las últimas 24 horas
+    avanza(88, "Buscando noticias de las últimas 24 horas")
+    try:
+        notas = m.menciones_noticias(mercado.consulta_noticias(), 1, pais, idioma)
+        salida["noticias"] = [{"fecha": n["fecha"].isoformat(timespec="minutes"), "titulo": n["titulo"],
+                               "medio": n["medio"], "url": n["url"], "fuente": "Google Noticias"} for n in notas[:12]]
+    except m.ErrorFuente as e:
+        salida["noticias"], salida["errores"]["noticias"] = [], str(e)
+
+    salida["enlaces"] = enlaces_redes(mercado.nombre, pais)
+    salida["picos"] = [h["palabra"] for h in horas if h["pico"]]
+    avanza(100, "Listo")
+    return salida
 
 
 # ---------------------------------------------------------------------------

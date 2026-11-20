@@ -69,6 +69,7 @@ class Estado:
         self.avisos: list[dict] = []             # picos detectados para mostrar en la interfaz
         self.escaneando = False
         self.ultimo_escaneo = None
+        self.vivo = None                         # último «En vivo»
 
     def _cliente_trends(self):
         return m.GoogleTrends(self.cfg.get("pais") or "MX", self.cfg.get("idioma", "es-419"),
@@ -276,6 +277,35 @@ def accion_analizar(_d):
         return rep
 
     return {"trabajo": E.trabajo("analizar", trabajo)}
+
+
+def accion_en_vivo(_d):
+    mer = E.mercado
+    if not mer:
+        raise m.ErrorFuente("Primero crea o elige tu mercado.")
+    cfg = dict(E.cfg)
+    previo = E.ultimo_analisis() or {}
+    por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
+    orden = [c["palabra"] for c in por_pop if c.get("serie")] or None
+
+    def trabajo(avanzar):
+        r = an.en_vivo(cfg, mer, E.gt, avanzar, orden)
+        E.vivo = _json(r)
+        if r["picos"]:
+            E.avisos.append({"fecha": r["fecha"], "picos": [{"termino": p, "fuente": "Google (últimas horas)",
+                                                             "detalle": "Se está buscando mucho más que en el resto del día",
+                                                             "cambio": next((h["cambio"] for h in r["google_horas"]
+                                                                             if h["palabra"] == p), None)}
+                                                            for p in r["picos"]]})
+        return r
+
+    return {"trabajo": E.trabajo("en_vivo", trabajo)}
+
+
+def accion_en_vivo_ultimo(_d):
+    mer = E.mercado
+    v = E.vivo if (E.vivo and mer and E.vivo.get("mercado") == mer.nombre) else None
+    return {"vivo": v}
 
 
 def accion_ultimo_analisis(_d):
@@ -519,6 +549,7 @@ ACCIONES = {
     "alertas": accion_alertas, "alertas/agregar": accion_alerta_agregar,
     "alertas/desde_mercado": accion_alerta_desde_mercado, "alertas/quitar": accion_alerta_quitar,
     "alertas/escanear": accion_alerta_escanear, "avisos": accion_avisos, "trabajo": accion_trabajo,
+    "en_vivo": accion_en_vivo, "en_vivo/ultimo": accion_en_vivo_ultimo,
     "abrir": accion_abrir, "redes/investigar": accion_investigar_redes, "config/probar_instagram": accion_probar_instagram, "exportar": accion_exportar, "actualizacion": accion_actualizacion,
 }
 

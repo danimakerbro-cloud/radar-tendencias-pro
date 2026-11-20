@@ -72,7 +72,17 @@ def _autoprueba(ruta_salida: str) -> int:
             "coinciden": [(c["busqueda"], c["fuentes"]) for c in (rep.get("redes") or {}).get("coinciden", [])][:5],
         }
         resultado["pasos"]["analizar"]["despegan"] = {k: v[:3] for k, v in resultado["pasos"]["analizar"]["despegan"].items()}
-        resultado["ok"] = an["estado"] == "listo" and bool(rep.get("palabras"))
+        vivo = esperar(post("en_vivo")["trabajo"])
+        v = vivo.get("resultado") or {}
+        resultado["pasos"]["en_vivo"] = {
+            "estado": vivo["estado"], "error": vivo.get("error"), "errores": v.get("errores"),
+            "horas": [(h["palabra"], len(h.get("serie") or []), h.get("pico"), h.get("cambio"), (h.get("error") or "")[:80])
+                      for h in v.get("google_horas", [])],
+            "hoy_mercado": [t["tema"] for t in v.get("hoy_mercado") or []][:5],
+            "hoy_general": [t["tema"] for t in v.get("hoy_general") or []][:5],
+            "noticias_24h": len(v.get("noticias") or []),
+        }
+        resultado["ok"] = an["estado"] == "listo" and bool(rep.get("palabras")) and vivo["estado"] == "listo"
     except Exception:  # noqa: BLE001
         resultado["traza"] = traceback.format_exc()
     with open(ruta_salida, "w", encoding="utf-8") as f:
