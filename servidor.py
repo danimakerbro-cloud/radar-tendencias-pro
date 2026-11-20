@@ -177,7 +177,9 @@ def accion_investigar_redes(_d):
     def trabajo(avanzar):
         previo = E.ultimo_analisis() or {}
         google = [x for grupo in (previo.get("despegan") or {}).values() for x in grupo if x.get("fuente") == "Google"]
-        r = an.investigar_redes(cfg, mer, E.gt, avanzar, 0, 100, google)
+        por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
+        orden = [c["palabra"] for c in por_pop if c.get("serie")] or None
+        r = an.investigar_redes(cfg, mer, E.gt, avanzar, 0, 100, google, orden)
         # Se guarda dentro del último análisis para verlo al volver
         rep = previo or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
                                       "errores": {}, "avisos": [], "parcial": True}

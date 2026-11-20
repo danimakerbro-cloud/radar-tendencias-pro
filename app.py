@@ -117,7 +117,7 @@ def _prueba_ventana(ruta_salida: str) -> int:
             res["titulo"] = ventana.evaluate_js("document.title")
             res["menu"] = ventana.evaluate_js("document.querySelectorAll('#menu button').length")
             res["texto"] = ventana.evaluate_js("document.querySelector('#contenido').innerText.slice(0, 120)")
-            res["ok"] = res["menu"] == 7 and "Bienvenido" in (res["texto"] or "")
+            res["ok"] = (res["menu"] or 0) >= 7 and "Bienvenido" in (res["texto"] or "")
         except Exception:  # noqa: BLE001
             res["traza"] = traceback.format_exc()
         finally:

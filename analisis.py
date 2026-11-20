@@ -213,7 +213,7 @@ def sugerir_palabras(nombre: str, pais: str = "MX", idioma: str = "es-419") -> d
 # Interés de cada palabra, cada una con su propia escala
 # ---------------------------------------------------------------------------
 def interes_por_palabra(gt: m.GoogleTrends, palabras: list[str], tiempo: str = "today 3-m",
-                        al_avanzar=None, umbral_z: float = 2.0) -> tuple[list[dict], str]:
+                        al_avanzar=None, umbral_z: float = 2.0, propiedad: str = "") -> tuple[list[dict], str]:
     """Consulta cada palabra por separado (para que una grande no aplaste a las chicas).
     Si Google limita las consultas, cae a consultas de 5 en 5."""
     resultados, aviso = [], ""
@@ -222,7 +222,7 @@ def interes_por_palabra(gt: m.GoogleTrends, palabras: list[str], tiempo: str = "
         if al_avanzar:
             al_avanzar(i, len(palabras), p)
         try:
-            fechas, series = gt.interes_en_el_tiempo([p], tiempo)
+            fechas, series = gt.interes_en_el_tiempo([p], tiempo, propiedad)
         except m.ErrorFuente as e:
             if "limitando" in str(e) or "429" in str(e):
                 aviso = "Google limitó las consultas; algunas palabras se midieron juntas."
@@ -241,7 +241,7 @@ def interes_por_palabra(gt: m.GoogleTrends, palabras: list[str], tiempo: str = "
         grupo = pendientes[j:j + 5]
         try:
             time.sleep(4)
-            fechas, series = gt.interes_en_el_tiempo(grupo, tiempo)
+            fechas, series = gt.interes_en_el_tiempo(grupo, tiempo, propiedad)
             for p in grupo:
                 resultados.append({"palabra": p, "serie": series[p], "fechas": [f.date().isoformat() for f in fechas],
                                    **veredicto(series[p], umbral_z)})
@@ -343,12 +343,14 @@ def enlaces_redes(palabra: str, pais: str = "MX") -> dict:
 
 
 def investigar_redes(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanzar=None,
-                     desde: int = 0, hasta: int = 100, google_suben: list | None = None) -> dict:
-    """Busca el mercado en cada red que permite consultar datos y arma un resumen por red."""
+                     desde: int = 0, hasta: int = 100, google_suben: list | None = None,
+                     palabras: list[str] | None = None) -> dict:
+    """Busca el mercado en cada red que permite consultar datos y arma un resumen por red.
+    palabras: las del mercado ordenadas de más a menos buscadas (si se conocen)."""
     pais = cfg.get("pais") or "MX"
     idioma = cfg.get("idioma", "es-419")
     umbral = float(cfg.get("umbral_z", 2.0))
-    pal = mercado.palabras[:5]
+    pal = (palabras or mercado.palabras)[:5]
     principal = pal[0] if pal else mercado.nombre
     redes: dict = {}
 
@@ -363,12 +365,13 @@ def investigar_redes(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
     for i, (clave, prop) in enumerate(_PROPIEDADES):
         avanza(0.05 + 0.15 * i, f"Midiendo tu mercado en {REDES[clave]}")
         red = {"nombre": REDES[clave], "estado": "ok", "suben": []}
-        try:
-            _, series = gt.interes_en_el_tiempo(pal, "today 3-m", prop)
-            red["palabras"] = [{"palabra": p, "serie": series[p], **veredicto(series[p], umbral)} for p in pal]
-        except m.ErrorFuente as e:
-            red.update(estado="error", error=str(e), palabras=[])
-        time.sleep(0.8)
+        # Cada palabra por separado, para que una muy buscada no aplaste a las demás
+        cada, aviso = interes_por_palabra(gt, pal[:3], "today 3-m", None, umbral, prop)
+        red["palabras"] = cada
+        if aviso:
+            red["aviso"] = aviso
+        if cada and all(c.get("error") for c in cada):
+            red.update(estado="error", error=cada[0]["error"])
         # Lo que está subiendo dentro de esa red
         for p in (pal[:2] if clave == "youtube" else pal[:1]):
             try:
@@ -526,7 +529,9 @@ def analizar_mercado(cfg: dict, mercado: m.Mercado, gt: m.GoogleTrends, al_avanz
 
     # 3) Investigación en redes (53-80%)
     try:
-        rep["redes"] = investigar_redes(cfg, mercado, gt, al_avanzar, 53, 80, google_suben)
+        por_pop = sorted(rep.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
+        orden = [c["palabra"] for c in por_pop if c.get("serie")] or palabras
+        rep["redes"] = investigar_redes(cfg, mercado, gt, al_avanzar, 53, 80, google_suben, orden)
         for clave in ("youtube", "imagenes", "shopping", "pinterest"):
             despegan += [dict(x) for x in rep["redes"]["redes"].get(clave, {}).get("suben", [])]
     except m.ErrorFuente as e:
