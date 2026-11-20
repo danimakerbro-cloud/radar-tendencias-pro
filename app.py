@@ -159,12 +159,18 @@ def main() -> int:
     except Exception:  # noqa: BLE001
         _respaldo_navegador(url, traceback.format_exc())
         return 0
+    cargo = {"ok": False}
     try:
-        webview.create_window(m.APP_NOMBRE, url, width=1380, height=900, min_size=(1100, 700),
-                              background_color="#F4F7FC", text_select=True)
+        ventana = webview.create_window(m.APP_NOMBRE, url, width=1380, height=900, min_size=(1100, 700),
+                                        background_color="#F4F7FC", text_select=True)
+        ventana.events.loaded += lambda: cargo.update(ok=True)
         webview.start(private_mode=False, storage_path=os.path.join(m.APP_DIR, "ventana"))
     except Exception:  # noqa: BLE001
         _respaldo_navegador(url, traceback.format_exc())
+        return 0
+    if not cargo["ok"]:
+        # La ventana se cerró sin llegar a mostrar la interfaz (por ejemplo, falta WebView2)
+        _respaldo_navegador(url, "La ventana propia no llegó a cargar la interfaz.")
     return 0
 
 

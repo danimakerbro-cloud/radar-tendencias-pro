@@ -58,6 +58,7 @@ _IDEAS = {
 
 # Frases de quien solo quiere información (no va a comprar)
 _INFO_FRASES = [
+    "mi corazon es tuyo", "corazon es tuyo",
     "que es", "que son", "que significa", "significado", "como se llama", "como se llaman", "cuantos anos son",
     "que numero es", "que siglo es", "que bodas son", "por anos", "frases", "letra", "cancion", "pelicula",
     "peliculas", "serie", "capitulo", "libro", "resumen", "personajes", "obra de teatro", "biblia", "wikipedia",
@@ -67,12 +68,14 @@ _INFO_FRASES = [
     "esposa de", "quien es", "edad de", "sangre", "funeral", "cordero", "cana",
     "aniversario de bodas por", "que se regala", "numero romano", "romano",
 ]
-_INFO_PALABRAS = {"net", "sa", "wiki", "pdf", "rae", "lyrics", "trailer", "netflix", "disney", "imdb", "subaru",
+_INFO_PALABRAS = {"sangrienta", "sangriento", "terror", "net", "sa", "wiki", "pdf", "rae", "lyrics", "trailer", "netflix", "disney", "imdb", "subaru",
                   "xview", "xvi", "xvii", "xviii", "xix", "xx", "letras", "roblox", "minecraft", "fortnite", "sims",
                   "juego", "juegos", "anime", "novela", "telenovela", "capitulos", "temporada2", "actor", "actriz",
                   "cantante", "famosos", "famosa", "famoso", "testigos"}
 
 # «boda de julia roberts», «xv años de rubí», «la boda de rachel»: eventos de famosos o ficción
+# «boda de yosi y yaren», «la boda de ana y fernando…»: parejas de famosos, influencers o novelas
+_PAREJA = re.compile(r"\b(boda|bodas|xv anos) de [a-z]+ y [a-z]+")
 _PERSONA = re.compile(r"^(la |las )?(boda|bodas|xv anos) (de|del) "
                       r"(?!(noche|dia|playa|jardin|campo|plata|oro|bronce|diamante|rubi|ensueno|lujo|princesa|"
                       r"blanco|negro|tarde|invierno|verano|primavera|otono|civil|religiosa|destino|mis|tus|"
@@ -96,7 +99,8 @@ def clasificar(texto: str, pais: str = "MX") -> str:
     palabras = set(n.split())
     if palabras & _FUERA.get((pais or "MX").upper(), set()):
         return "fuera"
-    if palabras & _INFO_PALABRAS or any(f" {f} " in n for f in _INFO_FRASES) or _PERSONA.match(n.strip()):
+    if palabras & _INFO_PALABRAS or any(f" {f} " in n for f in _INFO_FRASES) or _PERSONA.match(n.strip()) \
+            or _PAREJA.search(n):
         return "info"
     if palabras & _VENTA or any(f" {f} " in n for f in _VENTA_FRASES):
         return "venta"
