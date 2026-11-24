@@ -57,7 +57,7 @@ jobs:
           --add-data "radar.ico;." --add-data "ui;ui"
           app.py
 
-      - name: "Prueba 1: el programa analiza un mercado con internet real"
+      - name: "Prueba 1: el programa busca virales, hashtags e IA con internet real"
         shell: pwsh
         run: |
           $p = Start-Process -FilePath "dist\RadarTendenciasPro\RadarTendenciasPro.exe" -ArgumentList "--prueba", "$PWD\prueba.json" -PassThru -Wait
@@ -95,7 +95,7 @@ jobs:
       - name: Crear la versión portátil (.zip)
         shell: pwsh
         run: |
-          Copy-Item ejemplo_ventas.csv, LEEME.txt dist\RadarTendenciasPro\
+          Copy-Item LEEME.txt dist\RadarTendenciasPro\
           Compress-Archive -Path dist\RadarTendenciasPro\* -DestinationPath salida\RadarTendenciasPro-Portable.zip -Force
           Get-ChildItem salida | Format-Table Name, Length
 

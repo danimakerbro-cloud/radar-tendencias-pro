@@ -1,86 +1,52 @@
-RADAR DE TENDENCIAS PRO
-Programa para Windows 10/11 que mide tendencias en búsquedas, redes, noticias y tus propias ventas.
+RADAR DE TENDENCIAS PRO 2.0
+Lo que se está haciendo viral, por país o en todo el mundo.
+Desarrollado por Daniel Belmont, CEO de Obsidiana Technology.
 
-=====================================================================
-CÓMO INSTALARLO
-=====================================================================
-  1. Descarga RadarTendenciasPro-Setup.exe desde la página del programa:
-     https://danimakerbro-cloud.github.io/radar-tendencias-pro/
-  2. Ábrelo y da Siguiente > Instalar. No pide permisos de administrador.
+INSTALAR
+  1. Abre RadarTendenciasPro-Setup.exe y sigue los pasos.
      Si Windows muestra "Windows protegió su PC", da clic en
-     "Más información" > "Ejecutar de todas formas" (pasa con programas
-     nuevos sin firma digital).
-  3. Al abrir el programa, elige tu mercado en la pestaña "Mi mercado".
+     "Más información" y luego en "Ejecutar de todas formas".
+  2. Abre el programa desde el escritorio o el menú Inicio.
+     Al abrirlo ya busca lo viral de hoy en México.
 
-Cuando salga una versión nueva, el programa te avisa con una barra azul.
+LOS APARTADOS
+1. VIRALES AHORA: lo más buscado hoy en Google, los videos más vistos en
+   YouTube y lo que crece en Pinterest. Cada dato dice de qué red viene.
+   Arriba salen los temas que suben en varias redes a la vez.
+   Cambia el país o elige "Todo el mundo". Si quieres ver solo un tema,
+   escríbelo en "Filtrar por palabra". Se actualiza solo cada 15 minutos.
 
-=====================================================================
-CÓMO SE USA
-=====================================================================
-1. MI MERCADO: escribe tu giro (salones de fiestas, xv años, oficinas...).
-   El programa busca cómo lo busca la gente en Google y te muestra las
-   palabras separadas: para vender, ideas, y las que probablemente no son
-   de tu mercado (esas quedan sin marcar). Marca las que sí y guarda.
-   Trabajas un mercado a la vez: al buscar uno nuevo (botón "Cambiar de
-   mercado"), el anterior se borra por completo con sus palabras, su
-   análisis y sus alertas. Así nunca se mezclan.
-   Botón "Borrar mercado" (arriba y en Mi mercado): borra el mercado, su
-   análisis y sus alertas, y deja el programa como nuevo para empezar.
+2. POR LUGAR: marca uno o varios países (o todo el mundo) y compara.
+   Arriba quedan las tendencias que se repiten en varios lugares.
 
-2. INICIO > "Analizar mi mercado": en 1 a 3 minutos (con barra de avance)
-   te muestra:
-   - Cómo va cada palabra, una por una, con su propia curva:
-     Explotando, Sube fuerte, Sube, Estable, Baja...
-   - Búsquedas que están despegando, separadas en: oportunidades de venta,
-     ideas, generales y ocultas (informativas o de otros países).
-     Si algo no es de tu mercado, toca "No es de mi mercado" y no vuelve.
-   - Lo que la gente pregunta (sirve para anuncios y publicaciones).
-   - Lo más buscado hoy en México que toca tu mercado, noticias y videos.
+3. TENDENCIAS DE IA: cómo van ChatGPT, Gemini, Claude, Sora, DeepSeek y
+   otras herramientas de inteligencia artificial, qué busca la gente sobre
+   IA, y los videos y noticias del momento. Botón "Crear copy" en cada una.
 
-3. REDES SOCIALES: qué sube en YOUTUBE, GOOGLE IMÁGENES, GOOGLE SHOPPING,
-   PINTEREST e INSTAGRAM (estas dos con tu cuenta, en Ajustes). Cada dato
-   trae una etiqueta con la red de donde salió, y arriba aparece lo que
-   sube en varias redes a la vez. TikTok, Facebook y X no comparten datos
-   de tendencias: el programa abre sus páginas oficiales con un clic.
+4. COPYS E IDEAS: elige una tendencia (o escribe la tuya), el formato
+   (anuncio, publicación, Reel o TikTok, historia) y el tono. El programa
+   arma varios textos, un guion de video y los hashtags. Botón "Copiar texto".
+   Los textos salen de plantillas del programa; revísalos antes de publicar.
 
-4. IDEAS CREATIVAS: lo creativo que sube la gente sobre tu mercado:
-   ideas que buscan en Google y YouTube, lo visual que sube en Google
-   Imágenes, los Shorts que más pegan, qué formato funciona mejor en
-   Instagram (reels, fotos, carruseles), Pinterest y, arriba de todo, los
-   temas y hashtags que más se repiten entre redes.
+5. HASHTAGS: los mejores hashtags del momento para TikTok, Facebook,
+   Instagram y YouTube, en pestañas por red. Botón "Copiar los 15 primeros".
 
-5. TIKTOK Y FACEBOOK: abre TikTok o la Biblioteca de anuncios de Facebook
-   dentro del programa, presiona Ctrl+A y Ctrl+C, pégalo y da "Analizar lo
-   que pegué". Te dice quién se anuncia, precios, ofertas, hashtags y
-   temas, y todo se suma a tus ideas creativas.
+6. TIKTOK Y FACEBOOK: TikTok y Facebook no dan sus tendencias a otros
+   programas. Por eso: toca uno de los enlaces (por ejemplo "Hashtags en
+   tendencia en TikTok", la página oficial de TikTok, o "Buscar en
+   Facebook"), presiona Ctrl+A y Ctrl+C, regresa y pega con Ctrl+V.
+   El programa saca los hashtags y temas, y los suma al apartado Hashtags.
 
-6. COMPARAR PALABRAS: cada una por separado (cada una en su escala) o
-   juntas, para ver cuál se busca más.
+7. AJUSTES: país e idioma. Claves opcionales para más datos:
+   - YouTube: clave gratis de Google Cloud (YouTube Data API v3).
+   - Pinterest: token de Pinterest para desarrolladores.
+   - Instagram: token de Instagram Graph API y tu usuario de empresa.
+   Sin claves el programa funciona con Google y las noticias.
 
-7. NOTICIAS Y VIDEOS, MIS VENTAS (tu Excel o CSV) y ALERTAS (te avisa con
-   sonido cuando algo se dispara; deja el programa abierto).
+TUS DATOS
+  Todo se guarda solo en tu PC, en %APPDATA%\RadarTendenciasPro.
+  Las versiones 1.x guardaban mercados, ventas y alertas; la 2.0 ya no
+  los usa y los borra al abrirse.
 
-=====================================================================
-CLAVES OPCIONALES (GRATIS)
-=====================================================================
-YouTube Data API v3 (5 minutos):
-  console.cloud.google.com > crear proyecto > "APIs y servicios" >
-  Biblioteca > "YouTube Data API v3" > Habilitar > Credenciales >
-  Crear credenciales > Clave de API. Pégala en Configuración.
-
-Pinterest:
-  developers.pinterest.com > My apps > crear app > solicitar acceso >
-  generar token de acceso (lectura). Pégalo en Configuración.
-
-Todo lo demás (Google Trends, autocompletado, noticias) funciona sin claves.
-
-=====================================================================
-LÍMITES QUE CONVIENE SABER
-=====================================================================
-- Google Trends limita consultas muy seguidas: si ves el aviso, espera unos
-  minutos. Los números son relativos (0-100), no búsquedas exactas.
-- TikTok e Instagram no ofrecen API pública gratuita para tendencias, por eso
-  este programa usa YouTube y noticias. Para esas redes existen servicios de
-  paga (Brand24, Hootsuite, Sprout Social).
-- Las claves, el historial y los errores se guardan solo en tu PC, en:
-  %APPDATA%\RadarTendenciasPro
+¿Necesitas software para tu empresa? Escríbenos por WhatsApp:
+https://wa.me/5215649644950

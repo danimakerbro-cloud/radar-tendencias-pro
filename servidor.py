@@ -3,12 +3,11 @@
 Radar de Tendencias Pro - servidor interno.
 
 La ventana del programa es una página web local (carpeta ui/) que habla con este
-servidor en 127.0.0.1. Las tareas largas corren en segundo plano como "trabajos"
+servidor en 127.0.0.1. Las consultas largas corren en segundo plano como "trabajos"
 y la interfaz consulta su avance (porcentaje + paso) para la barra de carga.
 """
 from __future__ import annotations
 
-import base64
 import datetime as dt
 import json
 import mimetypes
@@ -16,7 +15,6 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 import threading
 import time
 import traceback
@@ -27,11 +25,6 @@ from urllib.parse import urlparse
 
 import analisis as an
 import motor as m
-
-try:
-    import winsound  # solo Windows
-except ImportError:  # pragma: no cover
-    winsound = None
 
 
 def ruta_recurso(*partes: str) -> str:
@@ -52,10 +45,6 @@ def _json(obj):
     return json.loads(json.dumps(obj, default=lambda o: o.isoformat() if hasattr(o, "isoformat") else str(o)))
 
 
-def _slug(texto: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", m.normalizar(texto)).strip("-") or "mercado"
-
-
 # ---------------------------------------------------------------------------
 # Estado compartido
 # ---------------------------------------------------------------------------
@@ -63,98 +52,48 @@ class Estado:
     def __init__(self):
         self.lock = threading.RLock()
         self.cfg = m.cargar_config()
-        self.db = m.BaseDatos()
-        self.gt = self._cliente_trends()
         self.trabajos: dict[str, dict] = {}
-        self.tablas: dict[str, tuple] = {}       # archivos de ventas abiertos
-        self.avisos: list[dict] = []             # picos detectados para mostrar en la interfaz
-        self.escaneando = False
-        self.ultimo_escaneo = None
-        self.vivo = None                         # último «En vivo»
-        self._migrar()
+        self._quitar_restos_de_versiones_viejas()
 
-    def _migrar(self):
-        """Versiones anteriores podían mezclar palabras entre mercados (por ejemplo «xv» con las de «bodas»).
-        Desde la 1.3.0 hay un solo mercado a la vez; al actualizar se empieza limpio una vez."""
-        if int(self.cfg.get("datos_v", 1)) >= 2:
-            return
-        viejos = self.cfg.get("mercados") or {}
-        palabras_viejas = {p for d in viejos.values() for p in d.get("palabras", [])}
-        for t in self.db.terminos():
-            if t in palabras_viejas:
-                self.db.quitar_termino(t)
-        self.cfg["mercados"], self.cfg["mercado_activo"], self.cfg["datos_v"] = {}, "", 2
-        shutil.rmtree(os.path.join(m.APP_DIR, "analisis"), ignore_errors=True)
-        m.guardar_config(self.cfg)
-
-    def _cliente_trends(self):
-        return m.GoogleTrends(self.cfg.get("pais") or "MX", self.cfg.get("idioma", "es-419"),
-                              int(self.cfg.get("zona_horaria_min", 360)))
+    def _quitar_restos_de_versiones_viejas(self):
+        """Las versiones 1.x guardaban mercados, análisis y alertas en esta carpeta. Ya no se usan."""
+        for nombre in ("analisis", "radar.db"):
+            ruta = os.path.join(m.APP_DIR, nombre)
+            if os.path.isdir(ruta):
+                shutil.rmtree(ruta, ignore_errors=True)
+            elif os.path.isfile(ruta):
+                try:
+                    os.remove(ruta)
+                except OSError:
+                    pass
 
     def guardar(self):
         with self.lock:
             m.guardar_config(self.cfg)
-            self.gt = self._cliente_trends()
-
-    @property
-    def mercado(self):
-        return m.mercado_activo(self.cfg)
 
     # ---------------------------------------------------- trabajos en segundo plano
-    def trabajo(self, nombre: str, fn, *args, mercado: str | None = None) -> str:
+    def trabajo(self, nombre: str, fn) -> str:
+        """fn recibe una función avanzar(pct, paso) y regresa el resultado."""
         tid = uuid.uuid4().hex[:10]
         t = {"id": tid, "nombre": nombre, "estado": "corriendo", "pct": 0, "paso": "Empezando…",
-             "resultado": None, "error": None, "inicio": time.time(), "mercado": mercado, "cancelado": False}
+             "resultado": None, "error": None, "inicio": time.time()}
         self.trabajos[tid] = t
 
         def avanzar(pct, paso):
-            if t["cancelado"]:
-                raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
             t["pct"], t["paso"] = max(t["pct"], min(99, int(pct))), paso
 
         def correr():
             try:
-                res = _json(fn(avanzar, *args))
-                if t["cancelado"]:
-                    raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
-                t["resultado"] = res
+                t["resultado"] = _json(fn(avanzar))
                 t["pct"], t["estado"] = 100, "listo"
             except m.ErrorFuente as e:
-                t["error"], t["estado"] = str(e), ("cancelado" if t["cancelado"] else "error")
+                t["error"], t["estado"] = str(e), "error"
             except Exception as e:  # noqa: BLE001
                 registrar_error(traceback.format_exc())
                 t["error"], t["estado"] = f"Error inesperado: {e}", "error"
 
         threading.Thread(target=correr, daemon=True).start()
         return tid
-
-    def cancelar_trabajos(self):
-        """Cancela análisis en curso de un mercado (al cambiarlo o borrarlo) para que no se mezclen."""
-        for t in self.trabajos.values():
-            if t["estado"] == "corriendo" and t.get("mercado"):
-                t["cancelado"] = True
-
-    def guardar_analisis(self, nombre: str, rep: dict):
-        """Solo se guarda si ese mercado sigue siendo el actual."""
-        if self.cfg.get("mercado_activo") != nombre:
-            raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
-        os.makedirs(os.path.dirname(self.ruta_analisis(nombre)), exist_ok=True)
-        with open(self.ruta_analisis(nombre), "w", encoding="utf-8") as f:
-            json.dump(_json(rep), f, ensure_ascii=False)
-
-    # ---------------------------------------------------- análisis guardado
-    def ruta_analisis(self, nombre: str) -> str:
-        return os.path.join(m.APP_DIR, "analisis", _slug(nombre) + ".json")
-
-    def ultimo_analisis(self):
-        mer = self.mercado
-        if not mer:
-            return None
-        try:
-            with open(self.ruta_analisis(mer.nombre), encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError):
-            return None
 
 
 E: Estado | None = None
@@ -163,433 +102,112 @@ E: Estado | None = None
 # ---------------------------------------------------------------------------
 # Acciones (una función por botón de la interfaz)
 # ---------------------------------------------------------------------------
+CLAVES_AJUSTES = ("pais", "youtube_api_key", "pinterest_token", "instagram_token", "instagram_usuario")
+
+
+def _resumen_claves(cfg: dict) -> dict:
+    return {"youtube": bool(cfg["youtube_api_key"]), "pinterest": bool(cfg["pinterest_token"]),
+            "instagram": bool(cfg["instagram_token"] and cfg["instagram_usuario"])}
+
+
 def accion_estado(_d):
     cfg = E.cfg
-    mer = E.mercado
-    return {
-        "version": m.APP_VERSION, "app": m.APP_NOMBRE, "pais": cfg.get("pais"), "idioma": cfg.get("idioma"),
-        "mercados": [{"nombre": n, **d} for n, d in sorted((cfg.get("mercados") or {}).items())],
-        "activo": mer.nombre if mer else "",
-        "config": {k: cfg.get(k) for k in ("pais", "idioma", "intervalo_min", "umbral_z", "sonido", "auto_escaneo")},
-        "tiene_youtube": bool(cfg.get("youtube_api_key")), "tiene_pinterest": bool(cfg.get("pinterest_token")),
-        "tiene_instagram": bool(cfg.get("instagram_token") and cfg.get("instagram_usuario")),
-        "plantillas": m.PLANTILLAS_MERCADO, "carpeta": m.APP_DIR,
-    }
+    return {"version": m.APP_VERSION, "pais": cfg["pais"],
+            "paises": [{"codigo": c, "nombre": n} for c, n in m.PAISES.items()],
+            "claves": _resumen_claves(cfg),
+            "pegados": {red: {"fecha": v.get("fecha"), "lineas": v.get("lineas")} for red, v in cfg["pegados"].items()}}
+
+
+def accion_config_claves(_d):
+    return {k: E.cfg.get(k, "") for k in CLAVES_AJUSTES}
 
 
 def accion_config(d):
     with E.lock:
-        for k in ("pais", "idioma", "youtube_api_key", "pinterest_token", "instagram_token", "instagram_usuario"):
-            if k in d and d[k] is not None:
-                E.cfg[k] = str(d[k]).strip()
-        if "intervalo_min" in d:
-            E.cfg["intervalo_min"] = max(15, int(d["intervalo_min"]))
-        if "umbral_z" in d:
-            E.cfg["umbral_z"] = min(5.0, max(1.0, float(d["umbral_z"])))
-        for k in ("sonido", "auto_escaneo"):
+        if d.get("pais") and d["pais"] not in m.PAISES:
+            raise m.ErrorFuente("Ese país no está en la lista.")
+        for k in CLAVES_AJUSTES:
             if k in d:
-                E.cfg[k] = bool(d[k])
+                E.cfg[k] = str(d[k] or "").strip()
         E.guardar()
     return accion_estado({})
 
 
-def accion_config_claves(_d):
-    return {k: E.cfg.get(k, "") for k in ("youtube_api_key", "pinterest_token", "instagram_token", "instagram_usuario")}
+def accion_probar_instagram(_d):
+    cfg = E.cfg
+    r = m.instagram_hashtag(cfg["instagram_token"], cfg["instagram_usuario"], "viral", 3)
+    return {"ok": True, "publicaciones": len(r["publicaciones"])}
 
 
-def accion_probar_instagram(d):
-    """Revisa que el token y la cuenta de Instagram funcionen con una búsqueda de hashtag."""
-    r = m.instagram_hashtag(d.get("token") or E.cfg.get("instagram_token"),
-                            d.get("usuario") or E.cfg.get("instagram_usuario"), "mexico", 3)
-    return {"mensaje": f"Conexión correcta: #{r['hashtag']} respondió con {len(r['publicaciones'])} publicaciones."}
+def _pais_de(d) -> str:
+    pais = (d.get("pais") or E.cfg["pais"]).upper()
+    if pais != m.MUNDO and pais not in m.PAISES:
+        raise m.ErrorFuente("Ese país no está en la lista.")
+    return pais
 
 
-def accion_investigar_redes(_d):
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea o elige tu mercado.")
-    cfg = dict(E.cfg)
-
-    def trabajo(avanzar):
-        previo = E.ultimo_analisis() or {}
-        google = [x for grupo in (previo.get("despegan") or {}).values() for x in grupo if x.get("fuente") == "Google"]
-        por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
-        orden = [c["palabra"] for c in por_pop if c.get("serie")] or None
-        r = an.investigar_redes(cfg, mer, E.gt, avanzar, 0, 100, google, orden)
-        # Se guarda dentro del último análisis para verlo al volver
-        rep = previo or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
-                                      "errores": {}, "avisos": [], "parcial": True}
-        rep["redes"] = _json(r)
-        rep["fecha_redes"] = dt.datetime.now().isoformat(timespec="minutes")
-        E.guardar_analisis(mer.nombre, rep)
-        return rep
-
-    return {"trabajo": E.trabajo("redes_sociales", trabajo, mercado=mer.nombre)}
+def accion_virales(d):
+    cfg, pais, filtro = dict(E.cfg), _pais_de(d), (d.get("filtro") or "")[:80]
+    return {"trabajo": E.trabajo("virales", lambda av: an.virales(cfg, pais, filtro, av))}
 
 
-def accion_sugerir(d):
-    nombre = (d.get("nombre") or "").strip()
-    if not nombre:
-        raise m.ErrorFuente("Escribe el nombre de tu mercado.")
-
-    def trabajo(avanzar):
-        avanzar(15, f"Buscando cómo busca la gente «{nombre}» en Google…")
-        r = an.sugerir_palabras(nombre, E.cfg.get("pais") or "MX", E.cfg.get("idioma", "es-419"))
-        avanzar(95, "Ordenando sugerencias…")
-        return r
-
-    return {"trabajo": E.trabajo("sugerir", trabajo)}
+def accion_por_lugar(d):
+    seleccion = [str(p).upper() for p in (d.get("paises") or [])][:20]
+    if not seleccion:
+        raise m.ErrorFuente("Elige al menos un país o el mundo.")
+    return {"trabajo": E.trabajo("por_lugar", lambda av: an.por_lugar(seleccion, av))}
 
 
-def accion_guardar_mercado(d):
-    nombre = " ".join((d.get("nombre") or "").split())
-    if not nombre:
-        raise m.ErrorFuente("Ponle nombre a tu mercado.")
-    palabras = [" ".join(p.split()) for p in d.get("palabras", []) if p and p.strip()]
-    if not palabras:
-        raise m.ErrorFuente("Elige al menos una palabra para tu mercado.")
-    mer = m.Mercado(nombre, palabras, d.get("excluir", []), d.get("pinterest", ""))
-    with E.lock:
-        viejos = E.cfg.get("mercados") or {}
-        editando = d.get("nombre_anterior") in viejos
-        if editando:
-            # Solo cambiaron las palabras del mismo mercado: se conserva lo demás
-            viejos.pop(d["nombre_anterior"], None)
-        else:
-            # Mercado nuevo: reemplaza por completo al anterior (palabras, análisis, en vivo y sus alertas)
-            _limpiar_todo()
-            viejos = {}
-        viejos[nombre] = mer.a_dict()
-        E.cfg["mercados"] = viejos
-        E.cfg["mercado_activo"] = nombre
-        E.guardar()
-    return accion_estado({})
+def accion_ia(d):
+    cfg, pais = dict(E.cfg), _pais_de(d)
+    if pais == m.MUNDO:
+        raise m.ErrorFuente("Las tendencias de IA se miden por país. Elige uno.")
+    return {"trabajo": E.trabajo("ia", lambda av: an.tendencias_ia(cfg, pais, av))}
 
 
-def accion_activar(d):
-    with E.lock:
-        nombre = d.get("nombre") or ""
-        E.cfg["mercado_activo"] = nombre if nombre in (E.cfg.get("mercados") or {}) else ""
-        E.guardar()
-    return accion_estado({})
+def accion_copys(d):
+    return {"copys": an.generar_copys(d.get("tema", ""), d.get("formato", ""), d.get("tono", ""),
+                                      [str(h)[:40] for h in (d.get("hashtags") or [])][:12])}
 
 
-def _limpiar_todo():
-    """Borra el mercado y todo lo que salió de él: análisis, en vivo, alertas y procesos en curso."""
-    E.cancelar_trabajos()
-    viejos = E.cfg.get("mercados") or {}
-    palabras_viejas = {p for v in viejos.values() for p in v.get("palabras", [])}
-    for t in E.db.terminos():
-        if t in palabras_viejas:
-            E.db.quitar_termino(t)
-    shutil.rmtree(os.path.join(m.APP_DIR, "analisis"), ignore_errors=True)
-    E.vivo = None
-    E.cfg["mercados"], E.cfg["mercado_activo"] = {}, ""
-
-
-def accion_borrar_mercado(_d):
-    """Botón «Borrar mercado»: deja el programa limpio para empezar otra vez."""
-    with E.lock:
-        _limpiar_todo()
-        E.guardar()
-    return accion_estado({})
-
-
-def accion_excluir(d):
-    """«No es de mi mercado»: agrega la búsqueda a las palabras a ignorar."""
-    texto = (d.get("texto") or "").strip()
-    mer = E.mercado
-    if not mer or not texto:
-        raise m.ErrorFuente("No hay mercado activo.")
-    with E.lock:
-        datos = E.cfg["mercados"][mer.nombre]
-        if texto not in datos.setdefault("excluir", []):
-            datos["excluir"].append(texto)
-        E.guardar()
-    return {"excluir": E.cfg["mercados"][mer.nombre]["excluir"]}
-
-
-def accion_analizar(_d):
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea o elige tu mercado.")
-    cfg = dict(E.cfg)
-
-    def trabajo(avanzar):
-        rep = an.analizar_mercado(cfg, mer, E.gt, avanzar)
-        previo = E.ultimo_analisis() or {}
-        if previo.get("pegados"):
-            rep["pegados"] = previo["pegados"]          # lo que pegaste de TikTok y Facebook se conserva
-        E.guardar_analisis(mer.nombre, rep)
-        return rep
-
-    return {"trabajo": E.trabajo("analizar", trabajo, mercado=mer.nombre)}
-
-
-def accion_en_vivo(_d):
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea o elige tu mercado.")
-    cfg = dict(E.cfg)
-    previo = E.ultimo_analisis() or {}
-    por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
-    orden = [c["palabra"] for c in por_pop if c.get("serie")] or None
-
-    def trabajo(avanzar):
-        r = an.en_vivo(cfg, mer, E.gt, avanzar, orden)
-        if E.cfg.get("mercado_activo") != mer.nombre:
-            raise m.ErrorFuente("Se canceló porque cambiaste o borraste el mercado.")
-        E.vivo = _json(r)
-        if r["picos"]:
-            E.avisos.append({"fecha": r["fecha"], "picos": [{"termino": p, "fuente": "Google (últimas horas)",
-                                                             "detalle": "Se está buscando mucho más que en el resto del día",
-                                                             "cambio": next((h["cambio"] for h in r["google_horas"]
-                                                                             if h["palabra"] == p), None)}
-                                                            for p in r["picos"]]})
-        return r
-
-    return {"trabajo": E.trabajo("en_vivo", trabajo, mercado=mer.nombre)}
-
-
-def _orden_por_popularidad(previo: dict):
-    por_pop = sorted(previo.get("palabras") or [], key=lambda c: -(c.get("popularidad") or 0))
-    return [c["palabra"] for c in por_pop if c.get("serie")] or None
-
-
-def accion_ideas(_d):
-    """Busca de nuevo solo las ideas creativas (reels, videos, imágenes, hashtags)."""
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea tu mercado.")
-    cfg = dict(E.cfg)
-
-    def trabajo(avanzar):
-        previo = E.ultimo_analisis() or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
-                                         "errores": {}, "avisos": [], "parcial": True}
-        previo["ideas"] = an.ideas_creativas(cfg, mer, E.gt, avanzar, _orden_por_popularidad(previo), previo)
-        E.guardar_analisis(mer.nombre, previo)
-        return previo
-
-    return {"trabajo": E.trabajo("ideas", trabajo, mercado=mer.nombre)}
+def accion_hashtags(d):
+    cfg, pais = dict(E.cfg), _pais_de(d)
+    if pais == m.MUNDO:
+        pais = "MX"       # YouTube e Instagram funcionan por país; el mundo se consulta por países en «Por lugar»
+    temas = [str(t)[:60] for t in (d.get("temas") or [])][:3]
+    return {"trabajo": E.trabajo("hashtags", lambda av: an.hashtags_tendencia(cfg, pais, temas, av))}
 
 
 def accion_pegar(d):
-    """Analiza el texto que copiaste de una página de TikTok o Facebook y lo guarda con tu mercado."""
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea tu mercado.")
-    red = d.get("red") or ""
+    red = (d.get("red") or "").lower()
+    if red not in ("tiktok", "facebook"):
+        raise m.ErrorFuente("Esa red no se puede analizar aquí.")
     texto = d.get("texto") or ""
     if len(texto.strip()) < 40:
-        raise m.ErrorFuente("Pegaste muy poco texto. En la página presiona Ctrl+A y luego Ctrl+C, y pega aquí.")
-    r = an.analizar_pegado(red, texto, mer)
-    rep = E.ultimo_analisis() or {"mercado": mer.nombre, "fecha": dt.datetime.now().isoformat(timespec="minutes"),
-                                  "errores": {}, "avisos": [], "parcial": True}
-    rep.setdefault("pegados", {})[red] = r
-    # Se suman a las ideas creativas sin volver a consultar internet
-    if rep.get("ideas") is not None:
-        an.cruzar_ideas(rep["ideas"], rep["pegados"], mer)
-    E.guardar_analisis(mer.nombre, rep)
-    return {"pegado": r, "analisis": rep}
+        raise m.ErrorFuente("Pega más texto: abre la página, presiona Ctrl+A y luego Ctrl+C.")
+    pegado = an.analizar_pegado(red, texto)
+    with E.lock:
+        E.cfg["pegados"][red] = pegado
+        E.guardar()
+    return {"pegado": pegado}
 
 
-def accion_en_vivo_ultimo(_d):
-    mer = E.mercado
-    v = E.vivo if (E.vivo and mer and E.vivo.get("mercado") == mer.nombre) else None
-    return {"vivo": v}
-
-
-def accion_ultimo_analisis(_d):
-    return {"analisis": E.ultimo_analisis()}
-
-
-def accion_comparar(d):
-    terminos = [" ".join(t.split()) for t in d.get("terminos", []) if t and t.strip()][:5]
-    if not terminos:
-        raise m.ErrorFuente("Escribe al menos una palabra para comparar.")
-    tiempo = m.PERIODOS_TRENDS.get(d.get("periodo"), "today 3-m")
-    mer = E.mercado
-    if mer and d.get("ajustar", True):
-        terminos = list(dict.fromkeys(mer.ajustar_termino(t) for t in terminos))
-    juntas = bool(d.get("juntas"))
-    umbral = float(E.cfg.get("umbral_z", 2.0))
-
-    def trabajo(avanzar):
-        if juntas:
-            avanzar(20, "Consultando Google Trends…")
-            fechas, series = E.gt.interes_en_el_tiempo(terminos, tiempo)
-            return {"juntas": True, "fechas": [f.isoformat() for f in fechas],
-                    "series": [{"palabra": t, "serie": series[t], **an.veredicto(series[t], umbral)}
-                               for t in terminos]}
-        res, aviso = an.interes_por_palabra(
-            E.gt, terminos, tiempo,
-            lambda i, n, p: avanzar(5 + 90 * i / n, f"Midiendo «{p}» ({i + 1} de {n})"), umbral)
-        orden = {t: i for i, t in enumerate(terminos)}
-        res.sort(key=lambda r: orden.get(r["palabra"], 99))
-        return {"juntas": False, "series": res, "aviso": aviso}
-
-    return {"trabajo": E.trabajo("comparar", trabajo), "terminos": terminos}
-
-
-def accion_redes(d):
-    tema = (d.get("tema") or "").strip()
-    dias = int(d.get("dias") or 7)
-    mer = E.mercado
-    if not tema and not mer:
-        raise m.ErrorFuente("Escribe un tema o elige tu mercado.")
-    cfg = dict(E.cfg)
-    umbral = float(cfg.get("umbral_z", 2.0))
-
-    def trabajo(avanzar):
-        salida = {"tema": f"{tema} en {mer.nombre}" if (tema and mer) else (tema or mer.nombre), "errores": {}}
-        avanzar(10, "Buscando noticias…")
-        try:
-            q = mer.consulta_noticias(tema) if mer else tema
-            notas = m.menciones_noticias(q, dias, cfg.get("pais") or "MX", cfg.get("idioma", "es-419"))
-            fechas, cuentas = m.conteo_por_dia(notas, max(dias, 2))
-            p = m.detectar_pico(cuentas, umbral, 1)
-            salida["noticias"] = {"total": len(notas), "pico": bool(p["es_pico"]), "normal": p["normal"],
-                                  "por_dia": [[f.isoformat(), c] for f, c in zip(fechas, cuentas)],
-                                  "items": [{"fecha": n["fecha"], "titulo": n["titulo"], "medio": n["medio"],
-                                             "url": n["url"]} for n in notas[:40]]}
-        except m.ErrorFuente as e:
-            salida["errores"]["noticias"] = str(e)
-        if cfg.get("youtube_api_key"):
-            avanzar(55, "Buscando videos en YouTube…")
-            try:
-                q = mer.consulta_youtube(tema) if mer else tema
-                vids = m.youtube_tendencia(cfg["youtube_api_key"], q, dias, cfg.get("pais") or "MX",
-                                           cfg.get("idioma", "es").split("-")[0], 50 if mer else 25, mer)
-                salida["videos"] = [{k: v for k, v in x.items() if k != "texto"} for x in vids[:25]]
-            except m.ErrorFuente as e:
-                salida["errores"]["videos"] = str(e)
+def accion_pegados_borrar(d):
+    with E.lock:
+        red = (d.get("red") or "").lower()
+        if red:
+            E.cfg["pegados"].pop(red, None)
         else:
-            salida["videos"] = None
-        return salida
-
-    return {"trabajo": E.trabajo("redes", trabajo)}
-
-
-def accion_datos_leer(d):
-    nombre = d.get("nombre") or "datos.csv"
-    contenido = base64.b64decode(d.get("contenido") or "")
-    ext = os.path.splitext(nombre)[1].lower() or ".csv"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        tmp.write(contenido)
-        ruta = tmp.name
-    try:
-        enc, filas = m.leer_tabla(ruta)
-    finally:
-        try:
-            os.remove(ruta)
-        except OSError:
-            pass
-    tid = uuid.uuid4().hex[:8]
-    E.tablas = {tid: (enc, filas)}          # solo guardamos el último archivo
-    g = m.adivinar_columnas(enc)
-    return {"id": tid, "archivo": nombre, "encabezados": enc, "filas": len(filas),
-            "sugeridas": {k: (enc[v] if v is not None else None) for k, v in g.items()},
-            "muestra": [[str(c) if c is not None else "" for c in f] for f in filas[:5]]}
+            E.cfg["pegados"] = {}
+        E.guardar()
+    return accion_estado({})
 
 
-def accion_datos_analizar(d):
-    if d.get("id") not in E.tablas:
-        raise m.ErrorFuente("Vuelve a abrir el archivo.")
-    enc, filas = E.tablas[d["id"]]
-    i_f = enc.index(d["fecha"])
-    i_v = enc.index(d["valor"]) if d.get("valor") in enc else None
-    i_c = enc.index(d["categoria"]) if d.get("categoria") in enc else None
-    freq = d.get("freq", "W")
-    a = m.agrupar(filas, i_f, i_v, i_c, freq, bool(d.get("incompleto", True)))
-    vals, per = a["valores"], a["periodos"]
-    n = m.ventana_efectiva(freq, len(per))
-    pr = m.pronostico(per, vals, max(1, int(d.get("pronostico", 4))), freq)
-    ranking = m.ranking_categorias(a["por_categoria"], n) if a["por_categoria"] else []
-    for r in ranking:
-        if r["cambio"] == float("inf"):
-            r["cambio"] = "nuevo"
-    i_max = max(range(len(vals)), key=vals.__getitem__)
-    prom = (sum(vals) / len(vals)) or 1
-    return {
-        "periodos": [p.isoformat() for p in per], "valores": vals,
-        "media_movil": m.media_movil(vals, {"D": 7, "W": 4, "M": 3}[freq]) if len(vals) > 3 else [],
-        "pronostico": {"periodos": [f.isoformat() for f in pr["fechas"]], "valores": pr["valores"]},
-        "kpis": {"total": sum(vals), "promedio": sum(vals) / len(vals), "crecimiento": m.crecimiento(vals, n),
-                 "ventana": n, "mejor": {"periodo": per[i_max].isoformat(), "valor": vals[i_max]},
-                 "pendiente_pct": pr["pendiente"] / prom * 100, "factores_dia": pr.get("factores_dia")},
-        "ranking": ranking, "por_categoria": a["por_categoria"],
-        "incompleto": a["periodo_incompleto_excluido"], "descartadas": a["descartadas"], "freq": freq,
-    }
-
-
-def accion_alertas(_d):
-    hist = E.db.historial(200)
-    return {"terminos": E.db.terminos(), "auto": bool(E.cfg.get("auto_escaneo")),
-            "intervalo": E.cfg.get("intervalo_min", 60), "ultimo": E.ultimo_escaneo, "escaneando": E.escaneando,
-            "historial": [{"fecha": h[0], "termino": h[1], "fuente": h[2], "valor": h[3], "normal": h[4], "z": h[5],
-                           "cambio": h[6], "pico": bool(h[7]), "detalle": h[8]} for h in hist]}
-
-
-def accion_alerta_agregar(d):
-    for t in d.get("terminos", []) or [d.get("termino", "")]:
-        if t and t.strip():
-            E.db.agregar_termino(t.strip())
-    return accion_alertas({})
-
-
-def accion_alerta_desde_mercado(_d):
-    mer = E.mercado
-    if not mer:
-        raise m.ErrorFuente("Primero crea o elige tu mercado.")
-    for p in mer.palabras[:6]:
-        E.db.agregar_termino(p)
-    return accion_alertas({})
-
-
-def accion_alerta_quitar(d):
-    E.db.quitar_termino(d.get("termino", ""))
-    return accion_alertas({})
-
-
-def escanear(avanzar=None):
-    if E.escaneando:
-        raise m.ErrorFuente("Ya se está revisando la lista.")
-    terminos = E.db.terminos()
-    if not terminos:
-        raise m.ErrorFuente("Agrega al menos una palabra a vigilar.")
-    E.escaneando = True
-    try:
-        mer, todas = E.mercado, []
-        for i, t in enumerate(terminos):
-            if avanzar:
-                avanzar(100 * i / len(terminos), f"Revisando «{t}» ({i + 1} de {len(terminos)})")
-            for lect in m.escanear_termino(t, E.cfg, E.gt, mer):
-                E.db.guardar_lectura(lect)
-                todas.append(lect)
-            time.sleep(2)
-        picos = [lect for lect in todas if lect["es_pico"]]
-        if picos:
-            E.avisos.append({"fecha": dt.datetime.now().isoformat(timespec="minutes"),
-                             "picos": [{"termino": p["termino"], "fuente": p["fuente"], "detalle": p["detalle"],
-                                        "cambio": p["cambio"]} for p in picos]})
-            if E.cfg.get("sonido", True) and winsound:
-                try:
-                    winsound.MessageBeep(winsound.MB_ICONASTERISK)
-                except RuntimeError:
-                    pass
-        E.ultimo_escaneo = dt.datetime.now().isoformat(timespec="minutes")
-        return {"lecturas": len(todas), "picos": len(picos)}
-    finally:
-        E.escaneando = False
-
-
-def accion_alerta_escanear(_d):
-    return {"trabajo": E.trabajo("alertas", escanear)}
-
-
-def accion_avisos(_d):
-    avisos, E.avisos = E.avisos, []
-    return {"avisos": avisos}
+def accion_pegados_ver(d):
+    red = (d.get("red") or "").lower()
+    if red not in E.cfg["pegados"]:
+        raise m.ErrorFuente("Todavía no has pegado nada de esa red.")
+    return {"pegado": E.cfg["pegados"][red]}
 
 
 def accion_trabajo(d):
@@ -642,15 +260,12 @@ def accion_actualizacion(_d):
 
 ACCIONES = {
     "estado": accion_estado, "config": accion_config, "config/claves": accion_config_claves,
-    "mercado/sugerir": accion_sugerir, "mercado/guardar": accion_guardar_mercado,
-    "mercado/activar": accion_activar, "mercado/borrar": accion_borrar_mercado, "mercado/excluir": accion_excluir,
-    "analizar": accion_analizar, "analisis/ultimo": accion_ultimo_analisis, "comparar": accion_comparar,
-    "redes": accion_redes, "datos/leer": accion_datos_leer, "datos/analizar": accion_datos_analizar,
-    "alertas": accion_alertas, "alertas/agregar": accion_alerta_agregar,
-    "alertas/desde_mercado": accion_alerta_desde_mercado, "alertas/quitar": accion_alerta_quitar,
-    "alertas/escanear": accion_alerta_escanear, "avisos": accion_avisos, "trabajo": accion_trabajo,
-    "en_vivo": accion_en_vivo, "en_vivo/ultimo": accion_en_vivo_ultimo, "ideas": accion_ideas, "pegar": accion_pegar,
-    "abrir": accion_abrir, "redes/investigar": accion_investigar_redes, "config/probar_instagram": accion_probar_instagram, "exportar": accion_exportar, "actualizacion": accion_actualizacion,
+    "config/probar_instagram": accion_probar_instagram,
+    "virales": accion_virales, "por_lugar": accion_por_lugar, "ia": accion_ia,
+    "copys": accion_copys, "hashtags": accion_hashtags,
+    "pegar": accion_pegar, "pegados/ver": accion_pegados_ver, "pegados/borrar": accion_pegados_borrar,
+    "trabajo": accion_trabajo, "abrir": accion_abrir, "exportar": accion_exportar,
+    "actualizacion": accion_actualizacion,
 }
 
 
@@ -699,21 +314,6 @@ class Manejador(BaseHTTPRequestHandler):
         self._responder(200, json.dumps(resultado, ensure_ascii=False).encode("utf-8"))
 
 
-def _vigilancia_automatica():
-    """Revisa la lista de alertas cada N minutos si está activado."""
-    proxima = time.time() + 120
-    while True:
-        time.sleep(30)
-        if not E.cfg.get("auto_escaneo") or time.time() < proxima:
-            continue
-        proxima = time.time() + max(15, int(E.cfg.get("intervalo_min", 60))) * 60
-        try:
-            if E.db.terminos() and not E.escaneando:
-                escanear()
-        except Exception:  # noqa: BLE001
-            registrar_error(traceback.format_exc())
-
-
 def iniciar(puerto: int = 0) -> tuple[ThreadingHTTPServer, int]:
     """Arranca el servidor en un hilo. Regresa (servidor, puerto)."""
     global E
@@ -721,5 +321,4 @@ def iniciar(puerto: int = 0) -> tuple[ThreadingHTTPServer, int]:
     srv = ThreadingHTTPServer(("127.0.0.1", puerto), Manejador)
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    threading.Thread(target=_vigilancia_automatica, daemon=True).start()
     return srv, srv.server_address[1]

@@ -19,8 +19,15 @@ import traceback
 import urllib.request
 
 
+TEXTO_PRUEBA = """Vals sorpresa de xv años con chambelanes #xvaños #vals #chambelanes
+1.2M
+vestido lila para xv años #vestidoxv #xvaños
+856K
+baile sorpresa xv años 2026 #bailesorpresa #vals"""
+
+
 def _autoprueba(ruta_salida: str) -> int:
-    """Arranca el servidor, crea un mercado de prueba y corre un análisis real con internet."""
+    """Arranca el servidor y revisa cada sección con internet real (lo corre GitHub Actions)."""
     os.environ["APPDATA"] = tempfile.mkdtemp(prefix="radar_prueba_")   # no tocar datos reales
     import servidor  # noqa: E402  (después de cambiar APPDATA)
 
@@ -47,47 +54,44 @@ def _autoprueba(ruta_salida: str) -> int:
         with urllib.request.urlopen(base + "/", timeout=20) as r:
             resultado["pasos"]["interfaz"] = r.status == 200 and b"Radar de Tendencias" in r.read()
         resultado["pasos"]["estado"] = post("estado")["ok"]
-        sug = esperar(post("mercado/sugerir", {"nombre": "salones de fiestas"})["trabajo"])
-        resultado["pasos"]["sugerir"] = {"estado": sug["estado"], "error": sug.get("error"),
-                                         "marcadas": [p["texto"] for p in (sug.get("resultado") or {}).get("palabras", [])
-                                                      if p["marcada"]][:12]}
-        plantilla = servidor.m.PLANTILLAS_MERCADO["Salones de fiestas y eventos"]
-        resultado["pasos"]["guardar"] = post("mercado/guardar", {"nombre": "Prueba salones",
-                                                                  "palabras": plantilla["palabras"][:4],
-                                                                  "excluir": plantilla["excluir"]})["ok"]
-        an = esperar(post("analizar")["trabajo"])
-        rep = an.get("resultado") or {}
-        resultado["pasos"]["analizar"] = {
-            "estado": an["estado"], "error": an.get("error"), "errores_secciones": rep.get("errores"),
-            "avisos": rep.get("avisos"),
-            "palabras": [(p["palabra"], p["veredicto"], p.get("cambio"), p.get("popularidad")) for p in rep.get("palabras", [])],
-            "despegan": {k: [x["busqueda"] for x in v][:6] for k, v in (rep.get("despegan") or {}).items()},
-            "preguntas": [x["pregunta"] for x in rep.get("preguntas", [])][:8],
-            "hoy_total": rep.get("hoy_total"), "noticias_total": (rep.get("noticias") or {}).get("total"),
-            "redes": {k: {"estado": v.get("estado"), "error": (v.get("error") or "")[:120],
-                          "veredictos": [(p["palabra"], p["veredicto"]) for p in v.get("palabras", [])][:3],
-                          "suben": [x["busqueda"] for x in v.get("suben", [])][:4],
-                          "sugerencias": [x["texto"] for x in v.get("sugerencias", [])][:4]}
-                      for k, v in ((rep.get("redes") or {}).get("redes") or {}).items()},
-            "coinciden": [(c["busqueda"], c["fuentes"]) for c in (rep.get("redes") or {}).get("coinciden", [])][:5],
-            "ideas": {"temas": [(t["tema"], t["veces"], t["fuentes"]) for t in (rep.get("ideas") or {}).get("temas", [])][:10],
-                      "hashtags": [h["hashtag"] for h in (rep.get("ideas") or {}).get("hashtags", [])][:10],
-                      "busquedas": len((rep.get("ideas") or {}).get("busquedas", [])),
-                      "imagenes": [x["busqueda"] for x in (rep.get("ideas") or {}).get("imagenes", [])][:5],
-                      "errores": (rep.get("ideas") or {}).get("errores")},
-        }
-        resultado["pasos"]["analizar"]["despegan"] = {k: v[:3] for k, v in resultado["pasos"]["analizar"]["despegan"].items()}
-        vivo = esperar(post("en_vivo")["trabajo"])
-        v = vivo.get("resultado") or {}
-        resultado["pasos"]["en_vivo"] = {
-            "estado": vivo["estado"], "error": vivo.get("error"), "errores": v.get("errores"),
-            "horas": [(h["palabra"], len(h.get("serie") or []), h.get("pico"), h.get("cambio"), (h.get("error") or "")[:80])
-                      for h in v.get("google_horas", [])],
-            "hoy_mercado": [t["tema"] for t in v.get("hoy_mercado") or []][:5],
-            "hoy_general": [t["tema"] for t in v.get("hoy_general") or []][:5],
-            "noticias_24h": len(v.get("noticias") or []),
-        }
-        resultado["ok"] = an["estado"] == "listo" and bool(rep.get("palabras")) and vivo["estado"] == "listo"
+
+        vir = esperar(post("virales", {"pais": "MX"})["trabajo"])
+        v = vir.get("resultado") or {}
+        resultado["pasos"]["virales"] = {
+            "estado": vir["estado"], "error": vir.get("error"), "errores": v.get("errores"),
+            "temas": [(t["tema"], t["paises"]) for t in v.get("temas", [])][:8],
+            "videos": len(v.get("videos") or []), "pinterest": len(v.get("pinterest") or [])}
+
+        lug = esperar(post("por_lugar", {"paises": ["MX", "US", "ES"]})["trabajo"])
+        lu = lug.get("resultado") or {}
+        resultado["pasos"]["por_lugar"] = {
+            "estado": lug["estado"], "error": lug.get("error"), "errores": lu.get("errores"),
+            "repetidos": [(r["tema"], r["paises"]) for r in lu.get("repetidos", [])][:5]}
+
+        cop = post("copys", {"tema": "vals de xv años", "formato": "Reel o TikTok", "tono": "Cercano",
+                             "hashtags": ["xvaños"]})
+        resultado["pasos"]["copys"] = {"ok": cop["ok"], "variantes": len((cop.get("copys") or {}).get("variantes", []))}
+
+        pg = post("pegar", {"red": "tiktok", "texto": TEXTO_PRUEBA})
+        resultado["pasos"]["pegar"] = {"ok": pg["ok"], "error": pg.get("error"),
+                                       "hashtags": [h["hashtag"] for h in (pg.get("pegado") or {}).get("hashtags", [])][:5]}
+
+        ht = esperar(post("hashtags", {"pais": "MX", "temas": ["vals"]})["trabajo"])
+        h = ht.get("resultado") or {}
+        resultado["pasos"]["hashtags"] = {"estado": ht["estado"], "error": ht.get("error"),
+                                          "mejores": [x["hashtag"] for x in h.get("mejores", [])][:8],
+                                          "errores": h.get("errores")}
+
+        ia = esperar(post("ia", {"pais": "MX"})["trabajo"])
+        i = ia.get("resultado") or {}
+        resultado["pasos"]["ia"] = {"estado": ia["estado"], "error": ia.get("error"),
+                                    "terminos": [(t["palabra"], t["veredicto"]) for t in i.get("terminos", [])][:6],
+                                    "subiendo": [x["busqueda"] for x in i.get("subiendo", [])][:4],
+                                    "noticias": len(i.get("noticias") or []), "errores": i.get("errores")}
+
+        # Lo obligatorio: virales, por lugar, copys, lo pegado y hashtags. La IA depende de Google y solo se informa.
+        resultado["ok"] = (vir["estado"] == "listo" and bool(v.get("temas")) and lug["estado"] == "listo"
+                           and bool(lu.get("por_pais")) and cop["ok"] and pg["ok"] and ht["estado"] == "listo")
     except Exception:  # noqa: BLE001
         resultado["traza"] = traceback.format_exc()
     with open(ruta_salida, "w", encoding="utf-8") as f:
@@ -131,8 +135,8 @@ def _prueba_ventana(ruta_salida: str) -> int:
             time.sleep(6)
             res["titulo"] = ventana.evaluate_js("document.title")
             res["menu"] = ventana.evaluate_js("document.querySelectorAll('#menu button').length")
-            res["texto"] = ventana.evaluate_js("document.querySelector('#contenido').innerText.slice(0, 120)")
-            res["ok"] = (res["menu"] or 0) >= 7 and "Bienvenido" in (res["texto"] or "")
+            res["texto"] = ventana.evaluate_js("document.querySelector('.logo').innerText")
+            res["ok"] = (res["menu"] or 0) >= 7 and "Radar" in (res["texto"] or "")
         except Exception:  # noqa: BLE001
             res["traza"] = traceback.format_exc()
         finally:

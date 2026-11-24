@@ -48,7 +48,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\dist\RadarTendenciasPro\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\ejemplo_ventas.csv"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LEEME.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
